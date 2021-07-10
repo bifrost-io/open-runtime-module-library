@@ -38,13 +38,13 @@ impl frame_system::Config for Runtime {
 	type BaseCallFilter = ();
 	type SystemWeightInfo = ();
 	type SS58Prefix = ();
+	type OnSetCode = ();
 }
 
 type Balance = u64;
 
 parameter_types! {
 	pub const ExistentialDeposit: u64 = 1;
-	pub const MinVestedTransfer: u64 = 5;
 }
 
 impl pallet_balances::Config for Runtime {
@@ -52,8 +52,10 @@ impl pallet_balances::Config for Runtime {
 	type DustRemoval = ();
 	type Event = Event;
 	type ExistentialDeposit = ExistentialDeposit;
-	type AccountStore = frame_system::Module<Runtime>;
+	type AccountStore = frame_system::Pallet<Runtime>;
 	type MaxLocks = ();
+	type MaxReserves = ();
+	type ReserveIdentifier = [u8; 8];
 	type WeightInfo = ();
 }
 
@@ -75,12 +77,28 @@ impl EnsureOrigin<Origin> for EnsureAliceOrBob {
 	}
 }
 
+parameter_types! {
+	pub const MaxVestingSchedule: u32 = 2;
+	pub const MinVestedTransfer: u64 = 5;
+	pub static MockBlockNumberProvider: u64 = 0;
+}
+
+impl BlockNumberProvider for MockBlockNumberProvider {
+	type BlockNumber = u64;
+
+	fn current_block_number() -> Self::BlockNumber {
+		Self::get()
+	}
+}
+
 impl Config for Runtime {
 	type Event = Event;
 	type Currency = PalletBalances;
 	type MinVestedTransfer = MinVestedTransfer;
 	type VestedTransferOrigin = EnsureAliceOrBob;
 	type WeightInfo = ();
+	type MaxVestingSchedules = MaxVestingSchedule;
+	type BlockNumberProvider = MockBlockNumberProvider;
 }
 
 type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Runtime>;
@@ -92,9 +110,9 @@ construct_runtime!(
 		NodeBlock = Block,
 		UncheckedExtrinsic = UncheckedExtrinsic,
 	{
-		System: frame_system::{Module, Call, Storage, Config, Event<T>},
-		Vesting: vesting::{Module, Storage, Call, Event<T>, Config<T>},
-		PalletBalances: pallet_balances::{Module, Call, Storage, Config<T>, Event<T>},
+		System: frame_system::{Pallet, Call, Storage, Config, Event<T>},
+		Vesting: vesting::{Pallet, Storage, Call, Event<T>, Config<T>},
+		PalletBalances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
 	}
 );
 
