@@ -3,21 +3,20 @@
 #![cfg(test)]
 
 use super::*;
-use frame_support::{construct_runtime, parameter_types, traits::EnsureOrigin};
+use frame_support::{
+	construct_runtime, parameter_types,
+	traits::{ConstU32, ConstU64, EnsureOrigin, Everything},
+};
 use frame_system::RawOrigin;
 use sp_core::H256;
 use sp_runtime::{testing::Header, traits::IdentityLookup};
 
 use crate as vesting;
 
-parameter_types! {
-	pub const BlockHashCount: u64 = 250;
-}
-
 pub type AccountId = u128;
 impl frame_system::Config for Runtime {
-	type Origin = Origin;
-	type Call = Call;
+	type RuntimeOrigin = RuntimeOrigin;
+	type RuntimeCall = RuntimeCall;
 	type Index = u64;
 	type BlockNumber = u64;
 	type Hash = H256;
@@ -25,8 +24,8 @@ impl frame_system::Config for Runtime {
 	type AccountId = AccountId;
 	type Lookup = IdentityLookup<Self::AccountId>;
 	type Header = Header;
-	type Event = Event;
-	type BlockHashCount = BlockHashCount;
+	type RuntimeEvent = RuntimeEvent;
+	type BlockHashCount = ConstU64<250>;
 	type BlockWeights = ();
 	type BlockLength = ();
 	type Version = ();
@@ -35,23 +34,20 @@ impl frame_system::Config for Runtime {
 	type OnNewAccount = ();
 	type OnKilledAccount = ();
 	type DbWeight = ();
-	type BaseCallFilter = ();
+	type BaseCallFilter = Everything;
 	type SystemWeightInfo = ();
 	type SS58Prefix = ();
 	type OnSetCode = ();
+	type MaxConsumers = ConstU32<16>;
 }
 
 type Balance = u64;
 
-parameter_types! {
-	pub const ExistentialDeposit: u64 = 1;
-}
-
 impl pallet_balances::Config for Runtime {
 	type Balance = Balance;
 	type DustRemoval = ();
-	type Event = Event;
-	type ExistentialDeposit = ExistentialDeposit;
+	type RuntimeEvent = RuntimeEvent;
+	type ExistentialDeposit = ConstU64<1>;
 	type AccountStore = frame_system::Pallet<Runtime>;
 	type MaxLocks = ();
 	type MaxReserves = ();
@@ -60,26 +56,26 @@ impl pallet_balances::Config for Runtime {
 }
 
 pub struct EnsureAliceOrBob;
-impl EnsureOrigin<Origin> for EnsureAliceOrBob {
+impl EnsureOrigin<RuntimeOrigin> for EnsureAliceOrBob {
 	type Success = AccountId;
 
-	fn try_origin(o: Origin) -> Result<Self::Success, Origin> {
-		Into::<Result<RawOrigin<AccountId>, Origin>>::into(o).and_then(|o| match o {
+	fn try_origin(o: RuntimeOrigin) -> Result<Self::Success, RuntimeOrigin> {
+		Into::<Result<RawOrigin<AccountId>, RuntimeOrigin>>::into(o).and_then(|o| match o {
 			RawOrigin::Signed(ALICE) => Ok(ALICE),
 			RawOrigin::Signed(BOB) => Ok(BOB),
-			r => Err(Origin::from(r)),
+			r => Err(RuntimeOrigin::from(r)),
 		})
 	}
 
 	#[cfg(feature = "runtime-benchmarks")]
-	fn successful_origin() -> Origin {
-		Origin::from(RawOrigin::Signed(Default::default()))
+	fn successful_origin() -> RuntimeOrigin {
+		let zero_account_id = AccountId::decode(&mut sp_runtime::traits::TrailingZeroInput::zeroes())
+			.expect("infinite length input; no invalid inputs for type; qed");
+		RuntimeOrigin::from(RawOrigin::Signed(zero_account_id))
 	}
 }
 
 parameter_types! {
-	pub const MaxVestingSchedule: u32 = 2;
-	pub const MinVestedTransfer: u64 = 5;
 	pub static MockBlockNumberProvider: u64 = 0;
 }
 
@@ -92,12 +88,12 @@ impl BlockNumberProvider for MockBlockNumberProvider {
 }
 
 impl Config for Runtime {
-	type Event = Event;
+	type RuntimeEvent = RuntimeEvent;
 	type Currency = PalletBalances;
-	type MinVestedTransfer = MinVestedTransfer;
+	type MinVestedTransfer = ConstU64<5>;
 	type VestedTransferOrigin = EnsureAliceOrBob;
 	type WeightInfo = ();
-	type MaxVestingSchedules = MaxVestingSchedule;
+	type MaxVestingSchedules = ConstU32<2>;
 	type BlockNumberProvider = MockBlockNumberProvider;
 }
 
@@ -120,6 +116,9 @@ pub const ALICE: AccountId = 1;
 pub const BOB: AccountId = 2;
 pub const CHARLIE: AccountId = 3;
 
+pub const ALICE_BALANCE: u64 = 100;
+pub const CHARLIE_BALANCE: u64 = 50;
+
 #[derive(Default)]
 pub struct ExtBuilder;
 
@@ -130,13 +129,17 @@ impl ExtBuilder {
 			.unwrap();
 
 		pallet_balances::GenesisConfig::<Runtime> {
-			balances: vec![(ALICE, 100), (CHARLIE, 30)],
+			balances: vec![(ALICE, ALICE_BALANCE), (CHARLIE, CHARLIE_BALANCE)],
 		}
 		.assimilate_storage(&mut t)
 		.unwrap();
 
 		vesting::GenesisConfig::<Runtime> {
-			vesting: vec![(CHARLIE, 2, 3, 4, 5)], // who, start, period, period_count, per_period
+			vesting: vec![
+				// who, start, period, period_count, per_period
+				(CHARLIE, 2, 3, 1, 5),
+				(CHARLIE, 2 + 3, 3, 3, 5),
+			],
 		}
 		.assimilate_storage(&mut t)
 		.unwrap();

@@ -2,7 +2,10 @@
 
 #![cfg(test)]
 
-use frame_support::{construct_runtime, parameter_types};
+use frame_support::{
+	construct_runtime,
+	traits::{ConstU32, ConstU64, Everything},
+};
 use sp_core::H256;
 use sp_runtime::{testing::Header, traits::IdentityLookup};
 
@@ -10,25 +13,21 @@ use super::*;
 
 use crate as nft;
 
-parameter_types! {
-	pub const BlockHashCount: u64 = 250;
-}
-
 pub type AccountId = u128;
 pub type BlockNumber = u64;
 
 impl frame_system::Config for Runtime {
-	type Origin = Origin;
+	type RuntimeOrigin = RuntimeOrigin;
 	type Index = u64;
 	type BlockNumber = BlockNumber;
-	type Call = Call;
+	type RuntimeCall = RuntimeCall;
 	type Hash = H256;
 	type Hashing = ::sp_runtime::traits::BlakeTwo256;
 	type AccountId = AccountId;
 	type Lookup = IdentityLookup<Self::AccountId>;
 	type Header = Header;
-	type Event = Event;
-	type BlockHashCount = BlockHashCount;
+	type RuntimeEvent = RuntimeEvent;
+	type BlockHashCount = ConstU64<250>;
 	type BlockWeights = ();
 	type BlockLength = ();
 	type Version = ();
@@ -37,15 +36,11 @@ impl frame_system::Config for Runtime {
 	type OnNewAccount = ();
 	type OnKilledAccount = ();
 	type DbWeight = ();
-	type BaseCallFilter = ();
+	type BaseCallFilter = Everything;
 	type SystemWeightInfo = ();
 	type SS58Prefix = ();
 	type OnSetCode = ();
-}
-
-parameter_types! {
-	pub const MaxClassMetadata: u32 = 1;
-	pub const MaxTokenMetadata: u32 = 1;
+	type MaxConsumers = ConstU32<16>;
 }
 
 impl Config for Runtime {
@@ -53,8 +48,8 @@ impl Config for Runtime {
 	type TokenId = u64;
 	type ClassData = ();
 	type TokenData = ();
-	type MaxClassMetadata = MaxClassMetadata;
-	type MaxTokenMetadata = MaxTokenMetadata;
+	type MaxClassMetadata = ConstU32<1>;
+	type MaxTokenMetadata = ConstU32<1>;
 }
 
 type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Runtime>;

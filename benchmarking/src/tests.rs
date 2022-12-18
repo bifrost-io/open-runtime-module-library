@@ -4,66 +4,64 @@
 
 use super::*;
 use frame_benchmarking::account;
-use frame_support::{assert_err, assert_ok, construct_runtime, ensure};
+use frame_support::{
+	assert_err, assert_ok, construct_runtime, ensure,
+	traits::{ConstU32, Everything},
+};
 use frame_system::RawOrigin;
 use sp_runtime::{
 	testing::{Header, H256},
 	traits::{BlakeTwo256, IdentityLookup},
 };
 use sp_std::prelude::*;
+pub use test::*;
 
-mod test {
-	use frame_support::{decl_module, decl_storage, dispatch::DispatchResult};
-	use frame_system::{ensure_none, ensure_signed};
-	use sp_std::prelude::*;
+#[frame_support::pallet]
+pub mod test {
+	use frame_support::pallet_prelude::*;
+	use frame_system::pallet_prelude::*;
 
-	pub trait Config: frame_system::Config {
-		type Event;
-		type BlockNumber;
-	}
+	#[pallet::config]
+	pub trait Config: frame_system::Config {}
 
-	decl_storage! {
-		trait Store for Module<T: Config> as Test {
-			pub Value get(fn value) config(): Option<u32>;
+	#[pallet::storage]
+	#[pallet::getter(fn value)]
+	pub(crate) type Value<T: Config> = StorageValue<_, u32, OptionQuery>;
+
+	#[pallet::pallet]
+	#[pallet::generate_store(pub(super) trait Store)]
+	pub struct Pallet<T>(_);
+
+	#[pallet::call]
+	impl<T: Config> Pallet<T> {
+		#[pallet::weight(0)]
+		pub fn set_value(origin: OriginFor<T>, n: u32) -> DispatchResult {
+			let _sender = frame_system::ensure_signed(origin)?;
+			Value::<T>::put(n);
+			Ok(())
+		}
+
+		#[pallet::weight(0)]
+		pub fn dummy(origin: OriginFor<T>, _n: u32) -> DispatchResult {
+			let _sender = frame_system::ensure_none(origin)?;
+			Ok(())
 		}
 	}
-
-	decl_module! {
-		pub struct Module<T: Config> for enum Call where origin: T::Origin {
-			#[weight = 0]
-			fn set_value(origin, n: u32) -> DispatchResult {
-				let _sender = ensure_signed(origin)?;
-				Value::put(n);
-				Ok(())
-			}
-
-			#[weight = 0]
-			fn dummy(origin, _n: u32) -> DispatchResult {
-				let _sender = ensure_none(origin)?;
-				Ok(())
-			}
-		}
-	}
-}
-
-pub trait Config: frame_system::Config {
-	type Event;
-	type BlockNumber;
 }
 
 type AccountId = u128;
 
 impl frame_system::Config for Test {
-	type Origin = Origin;
+	type RuntimeOrigin = RuntimeOrigin;
 	type Index = u64;
 	type BlockNumber = u64;
 	type Hash = H256;
-	type Call = Call;
+	type RuntimeCall = RuntimeCall;
 	type Hashing = BlakeTwo256;
 	type AccountId = AccountId;
 	type Lookup = IdentityLookup<Self::AccountId>;
 	type Header = Header;
-	type Event = Event;
+	type RuntimeEvent = RuntimeEvent;
 	type BlockHashCount = ();
 	type DbWeight = ();
 	type BlockWeights = ();
@@ -73,24 +71,17 @@ impl frame_system::Config for Test {
 	type AccountData = ();
 	type OnNewAccount = ();
 	type OnKilledAccount = ();
-	type BaseCallFilter = ();
+	type BaseCallFilter = Everything;
 	type SystemWeightInfo = ();
 	type SS58Prefix = ();
 	type OnSetCode = ();
+	type MaxConsumers = ConstU32<16>;
 }
 
-impl tests::test::Config for Test {
-	type Event = Event;
-	type BlockNumber = u32;
-}
-
-impl Config for Test {
-	type Event = Event;
-	type BlockNumber = u32;
-}
+impl Config for Test {}
 
 pub type Block = sp_runtime::generic::Block<Header, UncheckedExtrinsic>;
-pub type UncheckedExtrinsic = sp_runtime::generic::UncheckedExtrinsic<u32, Call, u32, ()>;
+pub type UncheckedExtrinsic = sp_runtime::generic::UncheckedExtrinsic<u32, RuntimeCall, u32, ()>;
 
 construct_runtime!(
 	pub enum Test where
@@ -99,7 +90,7 @@ construct_runtime!(
 		UncheckedExtrinsic = UncheckedExtrinsic,
 	{
 		System: frame_system::{Pallet, Call, Storage, Config, Event<T>},
-		Pallet: test::{Pallet, Call, Storage, Config},
+		Pallet: test::{Pallet, Call, Storage},
 	}
 );
 
@@ -118,14 +109,14 @@ runtime_benchmarks! {
 	set_value {
 		let b in 1 .. 1000;
 		let caller = account::<AccountId>("caller", 0, 0);
-	}: _ (RawOrigin::Signed(caller), b.into())
+	}: _ (RawOrigin::Signed(caller), b)
 	verify {
 		assert_eq!(Pallet::value(), Some(b));
 	}
 
 	other_name {
 		let b in 1 .. 1000;
-	}: dummy (RawOrigin::None, b.into())
+	}: dummy (RawOrigin::None, b)
 
 	sort_vector {
 		let x in 1 .. 10000;
@@ -134,7 +125,7 @@ runtime_benchmarks! {
 			m.push(i);
 		}
 	}: {
-		m.sort();
+		m.sort_unstable();
 	} verify {
 		ensure!(m[0] == 0, "You forgot to sort!")
 	}
@@ -142,7 +133,7 @@ runtime_benchmarks! {
 	bad_origin {
 		let b in 1 .. 1000;
 		let caller = account::<AccountId>("caller", 0, 0);
-	}: dummy (RawOrigin::Signed(caller), b.into())
+	}: dummy (RawOrigin::Signed(caller), b)
 
 	bad_verify {
 		let x in 1 .. 10000;
@@ -243,10 +234,10 @@ fn benchmarks_macro_verify_works() {
 #[test]
 fn benchmarks_generate_unit_tests() {
 	new_test_ext().execute_with(|| {
-		assert_ok!(test_benchmark_set_value());
-		assert_ok!(test_benchmark_other_name());
-		assert_ok!(test_benchmark_sort_vector());
-		assert_err!(test_benchmark_bad_origin(), "Bad origin");
-		assert_err!(test_benchmark_bad_verify(), "You forgot to sort!");
+		assert_ok!(Benchmark::test_benchmark_set_value());
+		assert_ok!(Benchmark::test_benchmark_other_name());
+		assert_ok!(Benchmark::test_benchmark_sort_vector());
+		assert_err!(Benchmark::test_benchmark_bad_origin(), "Bad origin");
+		assert_err!(Benchmark::test_benchmark_bad_verify(), "You forgot to sort!");
 	});
 }

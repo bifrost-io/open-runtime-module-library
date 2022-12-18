@@ -6,17 +6,17 @@ use std::cell::RefCell;
 
 thread_local! {
 	static METER: RefCell<Meter> = RefCell::new(Meter {
-		used_weight: 0,
+		used_weight: Weight::zero(),
 		depth: 0,
 	});
 }
 
 /// Start weight meter with base weight
-pub fn start() {
+pub fn start(weight: Weight) {
 	METER.with(|v| {
 		let mut meter = v.borrow_mut();
 		if meter.depth == 0 {
-			meter.used_weight = 0;
+			meter.used_weight = weight;
 		}
 		meter.depth = meter.depth.saturating_add(1);
 	});

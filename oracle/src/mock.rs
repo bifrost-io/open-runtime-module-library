@@ -2,7 +2,10 @@
 
 use super::*;
 
-use frame_support::{construct_runtime, parameter_types, traits::SortedMembers};
+use frame_support::{
+	construct_runtime, parameter_types,
+	traits::{ConstU32, ConstU64, Everything, SortedMembers},
+};
 use sp_core::H256;
 use sp_runtime::{
 	testing::Header,
@@ -19,12 +22,9 @@ pub type AccountId = u128;
 type Key = u32;
 type Value = u32;
 
-parameter_types! {
-	pub const BlockHashCount: u64 = 250;
-}
 impl frame_system::Config for Test {
-	type Origin = Origin;
-	type Call = Call;
+	type RuntimeOrigin = RuntimeOrigin;
+	type RuntimeCall = RuntimeCall;
 	type Index = u64;
 	type BlockNumber = u64;
 	type Hash = H256;
@@ -32,8 +32,8 @@ impl frame_system::Config for Test {
 	type AccountId = AccountId;
 	type Lookup = IdentityLookup<Self::AccountId>;
 	type Header = Header;
-	type Event = Event;
-	type BlockHashCount = BlockHashCount;
+	type RuntimeEvent = RuntimeEvent;
+	type BlockHashCount = ConstU64<250>;
 	type BlockWeights = ();
 	type BlockLength = ();
 	type Version = ();
@@ -42,10 +42,11 @@ impl frame_system::Config for Test {
 	type OnNewAccount = ();
 	type OnKilledAccount = ();
 	type DbWeight = ();
-	type BaseCallFilter = ();
+	type BaseCallFilter = Everything;
 	type SystemWeightInfo = ();
 	type SS58Prefix = ();
 	type OnSetCode = ();
+	type MaxConsumers = ConstU32<16>;
 }
 
 thread_local! {
@@ -68,8 +69,6 @@ impl Timestamp {
 }
 
 parameter_types! {
-	pub const MinimumCount: u32 = 3;
-	pub const ExpiresIn: u32 = 600;
 	pub const RootOperatorAccountId: AccountId = 4;
 	pub static OracleMembers: Vec<AccountId> = vec![1, 2, 3];
 }
@@ -82,21 +81,17 @@ impl SortedMembers<AccountId> for Members {
 	}
 }
 
-parameter_types! {
-	pub const MaxHasDispatchedSize: u32 = 100;
-}
-
 impl Config for Test {
-	type Event = Event;
+	type RuntimeEvent = RuntimeEvent;
 	type OnNewData = ();
-	type CombineData = DefaultCombineData<Self, MinimumCount, ExpiresIn>;
+	type CombineData = DefaultCombineData<Self, ConstU32<3>, ConstU32<600>>;
 	type Time = Timestamp;
 	type OracleKey = Key;
 	type OracleValue = Value;
 	type RootOperatorAccountId = RootOperatorAccountId;
 	type Members = Members;
 	type WeightInfo = ();
-	type MaxHasDispatchedSize = MaxHasDispatchedSize;
+	type MaxHasDispatchedSize = ConstU32<100>;
 }
 
 type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;

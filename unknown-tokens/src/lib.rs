@@ -3,7 +3,7 @@
 
 use frame_support::pallet_prelude::*;
 use sp_std::vec::Vec;
-use xcm::v0::{MultiAsset, MultiLocation};
+use xcm::latest::prelude::*;
 
 use orml_xcm_support::UnknownAsset;
 
@@ -18,16 +18,16 @@ pub mod module {
 
 	#[pallet::config]
 	pub trait Config: frame_system::Config {
-		type Event: From<Event> + IsType<<Self as frame_system::Config>::Event>;
+		type RuntimeEvent: From<Event> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
 	}
 
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(crate) fn deposit_event)]
 	pub enum Event {
-		/// Deposit success. [asset, to]
-		Deposited(MultiAsset, MultiLocation),
-		/// Withdraw success. [asset, from]
-		Withdrawn(MultiAsset, MultiLocation),
+		/// Deposit success.
+		Deposited { asset: MultiAsset, who: MultiLocation },
+		/// Withdraw success.
+		Withdrawn { asset: MultiAsset, who: MultiLocation },
 	}
 
 	#[pallet::error]
@@ -41,6 +41,8 @@ pub mod module {
 	}
 
 	#[pallet::pallet]
+	#[pallet::generate_store(pub(super) trait Store)]
+	#[pallet::without_storage_info]
 	pub struct Pallet<T>(_);
 
 	#[pallet::hooks]
@@ -71,44 +73,54 @@ pub mod module {
 impl<T: Config> UnknownAsset for Pallet<T> {
 	fn deposit(asset: &MultiAsset, to: &MultiLocation) -> DispatchResult {
 		match asset {
-			MultiAsset::ConcreteFungible { id, amount } => {
-				ConcreteFungibleBalances::<T>::try_mutate(to, id, |b| -> DispatchResult {
-					*b = b.checked_add(*amount).ok_or(Error::<T>::BalanceOverflow)?;
-					Ok(())
-				})
-			}
-			MultiAsset::AbstractFungible { id, amount } => {
-				AbstractFungibleBalances::<T>::try_mutate(to, id, |b| -> DispatchResult {
-					*b = b.checked_add(*amount).ok_or(Error::<T>::BalanceOverflow)?;
-					Ok(())
-				})
-			}
+			MultiAsset {
+				fun: Fungible(amount),
+				id: Concrete(location),
+			} => ConcreteFungibleBalances::<T>::try_mutate(to, location, |b| -> DispatchResult {
+				*b = b.checked_add(*amount).ok_or(Error::<T>::BalanceOverflow)?;
+				Ok(())
+			}),
+			MultiAsset {
+				fun: Fungible(amount),
+				id: Abstract(key),
+			} => AbstractFungibleBalances::<T>::try_mutate(to, key, |b| -> DispatchResult {
+				*b = b.checked_add(*amount).ok_or(Error::<T>::BalanceOverflow)?;
+				Ok(())
+			}),
 			_ => Err(Error::<T>::UnhandledAsset.into()),
 		}?;
 
-		Self::deposit_event(Event::Deposited(asset.clone(), to.clone()));
+		Self::deposit_event(Event::Deposited {
+			asset: asset.clone(),
+			who: to.clone(),
+		});
 
 		Ok(())
 	}
 
 	fn withdraw(asset: &MultiAsset, from: &MultiLocation) -> DispatchResult {
 		match asset {
-			MultiAsset::ConcreteFungible { id, amount } => {
-				ConcreteFungibleBalances::<T>::try_mutate(from, id, |b| -> DispatchResult {
-					*b = b.checked_sub(*amount).ok_or(Error::<T>::BalanceTooLow)?;
-					Ok(())
-				})
-			}
-			MultiAsset::AbstractFungible { id, amount } => {
-				AbstractFungibleBalances::<T>::try_mutate(from, id, |b| -> DispatchResult {
-					*b = b.checked_sub(*amount).ok_or(Error::<T>::BalanceTooLow)?;
-					Ok(())
-				})
-			}
+			MultiAsset {
+				fun: Fungible(amount),
+				id: Concrete(location),
+			} => ConcreteFungibleBalances::<T>::try_mutate(from, location, |b| -> DispatchResult {
+				*b = b.checked_sub(*amount).ok_or(Error::<T>::BalanceTooLow)?;
+				Ok(())
+			}),
+			MultiAsset {
+				fun: Fungible(amount),
+				id: Abstract(key),
+			} => AbstractFungibleBalances::<T>::try_mutate(from, key, |b| -> DispatchResult {
+				*b = b.checked_sub(*amount).ok_or(Error::<T>::BalanceTooLow)?;
+				Ok(())
+			}),
 			_ => Err(Error::<T>::UnhandledAsset.into()),
 		}?;
 
-		Self::deposit_event(Event::Withdrawn(asset.clone(), from.clone()));
+		Self::deposit_event(Event::Withdrawn {
+			asset: asset.clone(),
+			who: from.clone(),
+		});
 
 		Ok(())
 	}

@@ -1,14 +1,18 @@
-use codec::{Decode, Encode};
-use frame_support::{traits::Get, BoundedVec, DefaultNoBound};
-use sp_std::convert::TryInto;
+use codec::{Decode, Encode, MaxEncodedLen};
+use frame_support::{traits::Get, BoundedVec, CloneNoBound, DefaultNoBound, PartialEqNoBound};
+use scale_info::TypeInfo;
 #[cfg(feature = "std")]
 use sp_std::{fmt, prelude::*};
 
 /// An ordered set backed by `BoundedVec`
-#[derive(PartialEq, Eq, Encode, Decode, DefaultNoBound, Clone)]
-pub struct OrderedSet<T, S>(pub BoundedVec<T, S>);
+#[derive(PartialEqNoBound, Eq, Encode, Decode, DefaultNoBound, CloneNoBound, TypeInfo, MaxEncodedLen)]
+#[codec(mel_bound())]
+#[scale_info(skip_type_params(S))]
+pub struct OrderedSet<T: Ord + Encode + Decode + MaxEncodedLen + Clone + Eq + PartialEq, S: Get<u32>>(
+	pub BoundedVec<T, S>,
+);
 
-impl<T: Ord, S: Get<u32>> OrderedSet<T, S> {
+impl<T: Ord + Encode + Decode + MaxEncodedLen + Clone + Eq + PartialEq, S: Get<u32>> OrderedSet<T, S> {
 	/// Create a new empty set
 	pub fn new() -> Self {
 		Self(BoundedVec::default())
@@ -21,7 +25,7 @@ impl<T: Ord, S: Get<u32>> OrderedSet<T, S> {
 		v.sort();
 		v.dedup();
 
-		Self::from_sorted_set(v.try_into().expect("Did not add any values"))
+		Self::from_sorted_set(v.try_into().map_err(|_| ()).expect("Did not add any values"))
 	}
 
 	/// Create a set from a `Vec`.
@@ -42,7 +46,7 @@ impl<T: Ord, S: Get<u32>> OrderedSet<T, S> {
 	/// Remove an element.
 	/// Return true if removal happened.
 	pub fn remove(&mut self, value: &T) -> bool {
-		match self.0.binary_search(&value) {
+		match self.0.binary_search(value) {
 			Ok(loc) => {
 				self.0.remove(loc);
 				true
@@ -53,7 +57,7 @@ impl<T: Ord, S: Get<u32>> OrderedSet<T, S> {
 
 	/// Return if the set contains `value`
 	pub fn contains(&self, value: &T) -> bool {
-		self.0.binary_search(&value).is_ok()
+		self.0.binary_search(value).is_ok()
 	}
 
 	/// Clear the set
@@ -62,7 +66,9 @@ impl<T: Ord, S: Get<u32>> OrderedSet<T, S> {
 	}
 }
 
-impl<T: Ord, S: Get<u32>> From<BoundedVec<T, S>> for OrderedSet<T, S> {
+impl<T: Ord + Encode + Decode + MaxEncodedLen + Clone + Eq + PartialEq, S: Get<u32>> From<BoundedVec<T, S>>
+	for OrderedSet<T, S>
+{
 	fn from(v: BoundedVec<T, S>) -> Self {
 		Self::from(v)
 	}
@@ -71,7 +77,7 @@ impl<T: Ord, S: Get<u32>> From<BoundedVec<T, S>> for OrderedSet<T, S> {
 #[cfg(feature = "std")]
 impl<T, S> fmt::Debug for OrderedSet<T, S>
 where
-	T: fmt::Debug,
+	T: Ord + Encode + Decode + MaxEncodedLen + Clone + Eq + PartialEq + fmt::Debug,
 	S: Get<u32>,
 {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -86,9 +92,9 @@ mod tests {
 	use sp_runtime::RuntimeDebug;
 
 	parameter_types! {
-		#[derive(PartialEq, RuntimeDebug)]
+		#[derive(PartialEq, Eq, RuntimeDebug)]
 		pub const Eight: u32 = 8;
-		#[derive(PartialEq, RuntimeDebug)]
+		#[derive(PartialEq, Eq, RuntimeDebug)]
 		pub const Five: u32 = 5;
 	}
 
@@ -107,16 +113,16 @@ mod tests {
 		let mut set: OrderedSet<i32, Eight> = OrderedSet::new();
 		assert_eq!(set, OrderedSet::<i32, Eight>::from(vec![].try_into().unwrap()));
 
-		assert_eq!(set.insert(1), true);
+		assert!(set.insert(1));
 		assert_eq!(set, OrderedSet::<i32, Eight>::from(vec![1].try_into().unwrap()));
 
-		assert_eq!(set.insert(5), true);
+		assert!(set.insert(5));
 		assert_eq!(set, OrderedSet::<i32, Eight>::from(vec![1, 5].try_into().unwrap()));
 
-		assert_eq!(set.insert(3), true);
+		assert!(set.insert(3));
 		assert_eq!(set, OrderedSet::<i32, Eight>::from(vec![1, 3, 5].try_into().unwrap()));
 
-		assert_eq!(set.insert(3), false);
+		assert!(!set.insert(3));
 		assert_eq!(set, OrderedSet::<i32, Eight>::from(vec![1, 3, 5].try_into().unwrap()));
 	}
 
@@ -124,28 +130,28 @@ mod tests {
 	fn remove() {
 		let mut set: OrderedSet<i32, Eight> = OrderedSet::from(vec![1, 2, 3, 4].try_into().unwrap());
 
-		assert_eq!(set.remove(&5), false);
+		assert!(!set.remove(&5));
 		assert_eq!(
 			set,
 			OrderedSet::<i32, Eight>::from(vec![1, 2, 3, 4].try_into().unwrap())
 		);
 
-		assert_eq!(set.remove(&1), true);
+		assert!(set.remove(&1));
 		assert_eq!(set, OrderedSet::<i32, Eight>::from(vec![2, 3, 4].try_into().unwrap()));
 
-		assert_eq!(set.remove(&3), true);
+		assert!(set.remove(&3));
 		assert_eq!(set, OrderedSet::<i32, Eight>::from(vec![2, 4].try_into().unwrap()));
 
-		assert_eq!(set.remove(&3), false);
+		assert!(!set.remove(&3));
 		assert_eq!(set, OrderedSet::<i32, Eight>::from(vec![2, 4].try_into().unwrap()));
 
-		assert_eq!(set.remove(&4), true);
+		assert!(set.remove(&4));
 		assert_eq!(set, OrderedSet::<i32, Eight>::from(vec![2].try_into().unwrap()));
 
-		assert_eq!(set.remove(&2), true);
+		assert!(set.remove(&2));
 		assert_eq!(set, OrderedSet::<i32, Eight>::from(vec![].try_into().unwrap()));
 
-		assert_eq!(set.remove(&2), false);
+		assert!(!set.remove(&2));
 		assert_eq!(set, OrderedSet::<i32, Eight>::from(vec![].try_into().unwrap()));
 	}
 
@@ -153,11 +159,11 @@ mod tests {
 	fn contains() {
 		let set: OrderedSet<i32, Eight> = OrderedSet::from(vec![1, 2, 3, 4].try_into().unwrap());
 
-		assert_eq!(set.contains(&5), false);
+		assert!(!set.contains(&5));
 
-		assert_eq!(set.contains(&1), true);
+		assert!(set.contains(&1));
 
-		assert_eq!(set.contains(&3), true);
+		assert!(set.contains(&3));
 	}
 
 	#[test]
@@ -172,6 +178,6 @@ mod tests {
 		let mut set: OrderedSet<i32, Five> = OrderedSet::from(vec![1, 2, 3, 4, 5].try_into().unwrap());
 		let inserted = set.insert(6);
 
-		assert_eq!(inserted, false)
+		assert!(!inserted)
 	}
 }

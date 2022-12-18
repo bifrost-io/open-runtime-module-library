@@ -3,30 +3,23 @@
 #![cfg(test)]
 
 use super::*;
-use mock::{Event, *};
+use mock::*;
 
 use frame_support::{assert_err, assert_ok};
-use xcm::v0::Junction;
 
-const MOCK_RECIPIENT: MultiLocation = MultiLocation::X1(Junction::Parent);
-const MOCK_CONCRETE_FUNGIBLE_ID: MultiLocation = MultiLocation::X1(Junction::Parent);
+const MOCK_RECIPIENT: MultiLocation = MultiLocation::parent();
+const MOCK_CONCRETE_FUNGIBLE_ID: MultiLocation = MultiLocation::parent();
 
 fn mock_abstract_fungible_id() -> Vec<u8> {
 	vec![1]
 }
 
 fn concrete_fungible(amount: u128) -> MultiAsset {
-	MultiAsset::ConcreteFungible {
-		id: MOCK_CONCRETE_FUNGIBLE_ID,
-		amount,
-	}
+	(MOCK_CONCRETE_FUNGIBLE_ID, amount).into()
 }
 
 fn abstract_fungible(amount: u128) -> MultiAsset {
-	MultiAsset::AbstractFungible {
-		id: mock_abstract_fungible_id(),
-		amount,
-	}
+	(mock_abstract_fungible_id(), amount).into()
 }
 
 #[test]
@@ -38,7 +31,10 @@ fn deposit_concrete_fungible_asset_works() {
 			UnknownTokens::concrete_fungible_balances(&MOCK_RECIPIENT, &MOCK_CONCRETE_FUNGIBLE_ID),
 			3
 		);
-		System::assert_last_event(Event::UnknownTokens(crate::Event::Deposited(asset, MOCK_RECIPIENT)));
+		System::assert_last_event(RuntimeEvent::UnknownTokens(crate::Event::Deposited {
+			asset,
+			who: MOCK_RECIPIENT,
+		}));
 
 		// overflow case
 		let max_asset = concrete_fungible(u128::max_value());
@@ -58,7 +54,10 @@ fn deposit_abstract_fungible_asset() {
 			UnknownTokens::abstract_fungible_balances(&MOCK_RECIPIENT, &mock_abstract_fungible_id()),
 			3
 		);
-		System::assert_last_event(Event::UnknownTokens(crate::Event::Deposited(asset, MOCK_RECIPIENT)));
+		System::assert_last_event(RuntimeEvent::UnknownTokens(crate::Event::Deposited {
+			asset,
+			who: MOCK_RECIPIENT,
+		}));
 
 		// overflow case
 		let max_asset = abstract_fungible(u128::max_value());
@@ -77,7 +76,13 @@ fn deposit_abstract_fungible_asset() {
 fn deposit_unhandled_asset_should_fail() {
 	ExtBuilder.build().execute_with(|| {
 		assert_err!(
-			UnknownTokens::deposit(&MultiAsset::All, &MOCK_RECIPIENT),
+			UnknownTokens::deposit(
+				&MultiAsset {
+					fun: NonFungible(Undefined),
+					id: Concrete(MultiLocation::parent())
+				},
+				&MOCK_RECIPIENT
+			),
 			Error::<Runtime>::UnhandledAsset
 		);
 	});
@@ -94,10 +99,10 @@ fn withdraw_concrete_fungible_asset_works() {
 			UnknownTokens::concrete_fungible_balances(&MOCK_RECIPIENT, &MOCK_CONCRETE_FUNGIBLE_ID),
 			0
 		);
-		System::assert_last_event(Event::UnknownTokens(crate::Event::Withdrawn(
-			asset.clone(),
-			MOCK_RECIPIENT,
-		)));
+		System::assert_last_event(RuntimeEvent::UnknownTokens(crate::Event::Withdrawn {
+			asset: asset.clone(),
+			who: MOCK_RECIPIENT,
+		}));
 
 		// balance too low case
 		assert_err!(
@@ -118,10 +123,10 @@ fn withdraw_abstract_fungible_asset_works() {
 			UnknownTokens::abstract_fungible_balances(&MOCK_RECIPIENT, &mock_abstract_fungible_id()),
 			0
 		);
-		System::assert_last_event(Event::UnknownTokens(crate::Event::Withdrawn(
-			asset.clone(),
-			MOCK_RECIPIENT,
-		)));
+		System::assert_last_event(RuntimeEvent::UnknownTokens(crate::Event::Withdrawn {
+			asset: asset.clone(),
+			who: MOCK_RECIPIENT,
+		}));
 
 		// balance too low case
 		assert_err!(
@@ -135,7 +140,13 @@ fn withdraw_abstract_fungible_asset_works() {
 fn withdraw_unhandled_asset_should_fail() {
 	ExtBuilder.build().execute_with(|| {
 		assert_err!(
-			UnknownTokens::withdraw(&MultiAsset::All, &MOCK_RECIPIENT),
+			UnknownTokens::withdraw(
+				&MultiAsset {
+					fun: NonFungible(Undefined),
+					id: Concrete(MultiLocation::parent())
+				},
+				&MOCK_RECIPIENT
+			),
 			Error::<Runtime>::UnhandledAsset
 		);
 	});

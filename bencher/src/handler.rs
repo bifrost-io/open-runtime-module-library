@@ -3,26 +3,27 @@ use crate::{
 	BenchResult,
 };
 use codec::Decode;
+use frame_benchmarking::frame_support::traits::StorageInfo;
 use linregress::{FormulaRegressionBuilder, RegressionDataBuilder};
 use serde::{Deserialize, Serialize};
+use sp_core::hexdisplay::HexDisplay;
 use std::io::Write;
 use std::time::Duration;
 
 #[derive(Serialize, Deserialize, Default, Debug, Clone)]
 struct BenchData {
 	pub name: String,
-	pub base_weight: u64,
-	pub base_reads: u32,
-	pub base_repeat_reads: u32,
-	pub base_writes: u32,
-	pub base_repeat_writes: u32,
+	pub weight: u64,
+	pub reads: u32,
+	pub writes: u32,
+	pub comments: Vec<String>,
 }
 
 /// Handle bench results
-pub fn handle(output: Vec<u8>) {
+pub fn handle(output: Vec<u8>, storage_infos: Vec<StorageInfo>) {
 	println!();
 
-	let pkg_name = std::env::var("CARGO_PKG_NAME").unwrap_or_default().replace("-", "_");
+	let pkg_name = std::env::var("CARGO_PKG_NAME").unwrap_or_default().replace('-', "_");
 
 	let results = <Vec<BenchResult> as Decode>::decode(&mut &output[..]).unwrap();
 	let data: Vec<BenchData> = results
@@ -42,37 +43,62 @@ pub fn handle(output: Vec<u8>) {
 				.fit()
 				.unwrap();
 
+			let mut total_reads = 0u32;
+			let mut total_writes = 0u32;
+			let mut comments = Vec::<String>::new();
+			let keys = <Vec<(Vec<u8>, u32, u32)> as Decode>::decode(&mut &result.keys[..]).unwrap();
+			keys.into_iter().for_each(|(prefix, reads, writes)| {
+				total_reads += reads;
+				total_writes += writes;
+				if let Some(info) = storage_infos.iter().find(|x| x.prefix.eq(&prefix)) {
+					let pallet = String::from_utf8(info.pallet_name.clone()).unwrap();
+					let name = String::from_utf8(info.storage_name.clone()).unwrap();
+					comments.push(format!("{}::{} (r: {}, w: {})", pallet, name, reads, writes));
+				} else {
+					comments.push(format!(
+						"Unknown 0x{} (r: {}, w: {})",
+						HexDisplay::from(&prefix),
+						reads,
+						writes
+					));
+				}
+			});
+
+			comments.sort();
+
 			println!(
-				"{} {:<60} {:>20}  {:<20}  {:<20}",
+				"{} {:<40} {:>20} storage: {:<20}",
 				green_bold("Bench"),
-				cyan(&format!("{}::{}", pkg_name, name)),
+				cyan(&name),
 				green_bold(&format!(
 					"{:?}",
 					Duration::from_nanos(model.parameters.intercept_value as u64)
 				)),
-				format!("reads: {}", green_bold(&result.reads.to_string())),
-				format!("writes: {}", green_bold(&result.writes.to_string()))
+				green_bold(&format!(
+					"[r: {}, w: {}]",
+					&total_reads.to_string(),
+					&total_writes.to_string()
+				)),
 			);
 
 			BenchData {
 				name,
-				base_weight: model.parameters.intercept_value as u64 * 1_000,
-				base_reads: result.reads,
-				base_repeat_reads: result.repeat_reads,
-				base_writes: result.writes,
-				base_repeat_writes: result.repeat_writes,
+				weight: model.parameters.intercept_value as u64 * 1_000,
+				reads: total_reads,
+				writes: total_writes,
+				comments,
 			}
 		})
 		.collect();
 
 	println!();
 
-	if let Ok(json) = serde_json::to_string(&data) {
-		let stdout = ::std::io::stdout();
-		let mut handle = stdout.lock();
+	let outdir = std::env::var("CARGO_MANIFEST_DIR").unwrap();
+	let json_path = format!("{}/target/{}_bench_data.json", outdir, pkg_name);
+	let mut writer = std::io::BufWriter::new(std::fs::File::create(std::path::Path::new(&json_path)).unwrap());
+	serde_json::to_writer_pretty(&mut writer, &data).unwrap();
+	writer.write_all(b"\n").unwrap();
+	writer.flush().unwrap();
 
-		handle.write_all(&json.as_bytes()).unwrap();
-	} else {
-		eprintln!("Could not write benchdata to JSON");
-	}
+	std::io::stdout().lock().write_all(json_path.as_bytes()).unwrap();
 }

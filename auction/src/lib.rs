@@ -13,11 +13,12 @@
 #![allow(clippy::string_lit_as_bytes)]
 #![allow(clippy::unused_unit)]
 
+use codec::MaxEncodedLen;
 use frame_support::pallet_prelude::*;
 use frame_system::{ensure_signed, pallet_prelude::*};
 use orml_traits::{Auction, AuctionHandler, AuctionInfo, Change};
 use sp_runtime::{
-	traits::{AtLeast32BitUnsigned, Bounded, MaybeSerializeDeserialize, Member, One, Zero},
+	traits::{AtLeast32BitUnsigned, Bounded, CheckedAdd, MaybeSerializeDeserialize, Member, One, Zero},
 	DispatchError, DispatchResult,
 };
 
@@ -34,10 +35,16 @@ pub mod module {
 
 	#[pallet::config]
 	pub trait Config: frame_system::Config {
-		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
+		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
 
 		/// The balance type for bidding.
-		type Balance: Parameter + Member + AtLeast32BitUnsigned + Default + Copy + MaybeSerializeDeserialize;
+		type Balance: Parameter
+			+ Member
+			+ AtLeast32BitUnsigned
+			+ Default
+			+ Copy
+			+ MaybeSerializeDeserialize
+			+ MaxEncodedLen;
 
 		/// The auction ID type.
 		type AuctionId: Parameter
@@ -47,7 +54,8 @@ pub mod module {
 			+ Copy
 			+ MaybeSerializeDeserialize
 			+ Bounded
-			+ codec::FullCodec;
+			+ codec::FullCodec
+			+ codec::MaxEncodedLen;
 
 		/// The `AuctionHandler` that allow custom bidding logic and handles
 		/// auction result.
@@ -69,8 +77,12 @@ pub mod module {
 	#[pallet::event]
 	#[pallet::generate_deposit(fn deposit_event)]
 	pub enum Event<T: Config> {
-		/// A bid is placed. [auction_id, bidder, bidding_amount]
-		Bid(T::AuctionId, T::AccountId, T::Balance),
+		/// A bid is placed
+		Bid {
+			auction_id: T::AuctionId,
+			bidder: T::AccountId,
+			amount: T::Balance,
+		},
 	}
 
 	/// Stores on-going and future auctions. Closed auction are removed.
@@ -91,6 +103,7 @@ pub mod module {
 		StorageDoubleMap<_, Twox64Concat, T::BlockNumber, Blake2_128Concat, T::AuctionId, (), OptionQuery>;
 
 	#[pallet::pallet]
+	#[pallet::generate_store(pub(super) trait Store)]
 	pub struct Pallet<T>(_);
 
 	#[pallet::hooks]
@@ -115,11 +128,7 @@ pub mod module {
 		/// The dispatch origin for this call must be `Signed` by the
 		/// transactor.
 		#[pallet::weight(T::WeightInfo::bid_collateral_auction())]
-		pub fn bid(
-			origin: OriginFor<T>,
-			id: T::AuctionId,
-			#[pallet::compact] value: T::Balance,
-		) -> DispatchResultWithPostInfo {
+		pub fn bid(origin: OriginFor<T>, id: T::AuctionId, #[pallet::compact] value: T::Balance) -> DispatchResult {
 			let from = ensure_signed(origin)?;
 
 			Auctions::<T>::try_mutate_exists(id, |auction| -> DispatchResult {
@@ -155,8 +164,12 @@ pub mod module {
 				Ok(())
 			})?;
 
-			Self::deposit_event(Event::Bid(id, from, value));
-			Ok(().into())
+			Self::deposit_event(Event::Bid {
+				auction_id: id,
+				bidder: from,
+				amount: value,
+			});
+			Ok(())
 		}
 	}
 }
@@ -192,8 +205,7 @@ impl<T: Config> Auction<T::AccountId, T::BlockNumber> for Pallet<T> {
 		let auction_id =
 			<AuctionsIndex<T>>::try_mutate(|n| -> sp_std::result::Result<Self::AuctionId, DispatchError> {
 				let id = *n;
-				ensure!(id != Self::AuctionId::max_value(), Error::<T>::NoAvailableAuctionId);
-				*n += One::one();
+				*n = n.checked_add(&One::one()).ok_or(Error::<T>::NoAvailableAuctionId)?;
 				Ok(id)
 			})?;
 		Auctions::<T>::insert(auction_id, auction);
