@@ -1,5 +1,5 @@
 use frame_support::dispatch::DispatchResult;
-use xcm::latest::prelude::*;
+use xcm::v3::prelude::*;
 
 /// Abstraction over cross-chain token transfers.
 pub trait XcmTransfer<AccountId, Balance, CurrencyId> {
@@ -16,6 +16,15 @@ pub trait XcmTransfer<AccountId, Balance, CurrencyId> {
 	fn transfer_multi_asset(
 		who: AccountId,
 		asset: MultiAsset,
+		dest: MultiLocation,
+		dest_weight_limit: WeightLimit,
+	) -> DispatchResult;
+
+	/// Transfer `MultiAssetWithFee`
+	fn transfer_multiasset_with_fee(
+		who: AccountId,
+		asset: MultiAsset,
+		fee: MultiAsset,
 		dest: MultiLocation,
 		dest_weight_limit: WeightLimit,
 	) -> DispatchResult;

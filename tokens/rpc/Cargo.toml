@@ -8,15 +8,15 @@ edition = "2021"
 
 [dependencies]
 codec = { package = "parity-scale-codec", version = "3.0.0" }
-jsonrpsee = { version = "0.15.1", features = ["server", "macros"] }
+jsonrpsee = { version = "0.16.2", features = ["client", "server", "macros"] }
 tracing = { version = "0.1.29" }
 tracing-core = { version = "0.1.28" }
 
-frame-support = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.33" }
-sp-api = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.33" }
-sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.33" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.33" }
-sp-rpc = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.33" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.33" }
+frame-support = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.38" }
+sp-api = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.38" }
+sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.38" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.38" }
+sp-rpc = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.38" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.38" }
 
 orml-tokens-rpc-runtime-api = { version = "0.4.1-dev", path = "./runtime-api" }

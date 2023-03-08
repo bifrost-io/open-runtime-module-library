@@ -343,6 +343,18 @@ pub mod module {
 			currency_id: T::CurrencyId,
 			who: T::AccountId,
 		},
+		/// Some free balance was locked.
+		Locked {
+			currency_id: T::CurrencyId,
+			who: T::AccountId,
+			amount: T::Balance,
+		},
+		/// Some locked balance was freed.
+		Unlocked {
+			currency_id: T::CurrencyId,
+			who: T::AccountId,
+			amount: T::Balance,
+		},
 	}
 
 	/// The total issuance of a token type.
@@ -462,6 +474,7 @@ pub mod module {
 		/// - `dest`: The recipient of the transfer.
 		/// - `currency_id`: currency type.
 		/// - `amount`: free balance amount to tranfer.
+		#[pallet::call_index(0)]
 		#[pallet::weight(T::WeightInfo::transfer())]
 		pub fn transfer(
 			origin: OriginFor<T>,
@@ -493,6 +506,7 @@ pub mod module {
 		///   the sender account to be killed (false), or transfer everything
 		///   except at least the existential deposit, which will guarantee to
 		///   keep the sender account alive (true).
+		#[pallet::call_index(1)]
 		#[pallet::weight(T::WeightInfo::transfer_all())]
 		pub fn transfer_all(
 			origin: OriginFor<T>,
@@ -519,6 +533,7 @@ pub mod module {
 		/// - `dest`: The recipient of the transfer.
 		/// - `currency_id`: currency type.
 		/// - `amount`: free balance amount to tranfer.
+		#[pallet::call_index(2)]
 		#[pallet::weight(T::WeightInfo::transfer_keep_alive())]
 		pub fn transfer_keep_alive(
 			origin: OriginFor<T>,
@@ -541,6 +556,7 @@ pub mod module {
 		/// - `dest`: The recipient of the transfer.
 		/// - `currency_id`: currency type.
 		/// - `amount`: free balance amount to tranfer.
+		#[pallet::call_index(3)]
 		#[pallet::weight(T::WeightInfo::force_transfer())]
 		pub fn force_transfer(
 			origin: OriginFor<T>,
@@ -563,6 +579,7 @@ pub mod module {
 		/// existential deposit, it will reap the `AccountInfo`.
 		///
 		/// The dispatch origin for this call is `root`.
+		#[pallet::call_index(4)]
 		#[pallet::weight(T::WeightInfo::set_balance())]
 		pub fn set_balance(
 			origin: OriginFor<T>,
@@ -838,12 +855,18 @@ impl<T: Config> Pallet<T> {
 		who: &T::AccountId,
 		locks: &[BalanceLock<T::Balance>],
 	) -> DispatchResult {
+		// track lock delta
+		let mut total_frozen_prev = Zero::zero();
+		let mut total_frozen_after = Zero::zero();
+
 		// update account data
 		Self::mutate_account(who, currency_id, |account, _| {
+			total_frozen_prev = account.frozen;
 			account.frozen = Zero::zero();
 			for lock in locks.iter() {
 				account.frozen = account.frozen.max(lock.amount);
 			}
+			total_frozen_after = account.frozen;
 		});
 
 		// update locks
@@ -870,6 +893,22 @@ impl<T: Config> Pallet<T> {
 					);
 				}
 			}
+		}
+
+		if total_frozen_prev < total_frozen_after {
+			let amount = total_frozen_after.saturating_sub(total_frozen_prev);
+			Self::deposit_event(Event::Locked {
+				currency_id,
+				who: who.clone(),
+				amount,
+			});
+		} else if total_frozen_prev > total_frozen_after {
+			let amount = total_frozen_prev.saturating_sub(total_frozen_after);
+			Self::deposit_event(Event::Unlocked {
+				currency_id,
+				who: who.clone(),
+				amount,
+			});
 		}
 
 		Ok(())
@@ -1743,6 +1782,10 @@ impl<T: Config> fungibles::Inspect<T::AccountId> for Pallet<T> {
 		amount: Self::Balance,
 	) -> WithdrawConsequence<Self::Balance> {
 		Self::withdraw_consequence(who, asset_id, amount, &Self::accounts(who, asset_id))
+	}
+
+	fn asset_exists(asset: Self::AssetId) -> bool {
+		TotalIssuance::<T>::contains_key(asset)
 	}
 }
 
