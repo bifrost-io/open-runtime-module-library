@@ -3,39 +3,38 @@ name = "orml-oracle"
 description = "Oracle module that makes off-chain data available on-chain."
 repository = "https://github.com/open-web3-stack/open-runtime-module-library/tree/master/oracle"
 license = "Apache-2.0"
-version = "0.4.1-dev"
+version = "0.6.7"
 authors = ["Laminar Developers <hello@laminar.one>"]
 edition = "2021"
 
 [dependencies]
-codec = { package = "parity-scale-codec", version = "3.0.0", default-features = false }
-scale-info = { version = "2.1.2", default-features = false, features = ["derive"] }
-serde = { version = "1.0.136", optional = true }
+parity-scale-codec = { workspace = true }
+scale-info = { workspace = true }
+serde = { workspace = true, optional = true }
 
-frame-support = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.38" }
-frame-system = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.38" }
-sp-application-crypto = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.38" }
-sp-io = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.38" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.38" }
-sp-std = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.38" }
+frame-support = { workspace = true }
+frame-system = { workspace = true }
+sp-application-crypto = { workspace = true }
+sp-io = { workspace = true }
+sp-runtime = { workspace = true }
+sp-std = { workspace = true }
 
-orml-traits = { path = "../traits", version = "0.4.1-dev", default-features = false }
-orml-utilities = { path = "../utilities", version = "0.4.1-dev", default-features = false }
+orml-traits = { path = "../traits", version = "0.6.7", default-features = false }
+orml-utilities = { path = "../utilities", version = "0.6.7", default-features = false }
 
 [dev-dependencies]
-sp-core = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.38" }
+sp-core = { workspace = true }
 
 [features]
-default = ["std"]
+default = [ "std" ]
 std = [
-	"serde",
-
-	"codec/std",
 	"frame-support/std",
 	"frame-system/std",
 	"orml-traits/std",
 	"orml-utilities/std",
+	"parity-scale-codec/std",
 	"scale-info/std",
+	"serde",
 	"sp-application-crypto/std",
 	"sp-io/std",
 	"sp-runtime/std",
@@ -44,4 +43,5 @@ std = [
 try-runtime = [
 	"frame-support/try-runtime",
 	"frame-system/try-runtime",
+	"sp-runtime/try-runtime",
 ]

@@ -1,6 +1,6 @@
 # Payments Pallet
 
-This pallet allows users to create secure reversible payments that keep funds locked in a merchant's account until the off-chain goods are confirmed to be received. Each payment gets assigned its own *judge* that can help resolve any disputes between the two parties. 
+This pallet allows users to create secure reversible payments that keep funds locked in a merchant's account until the off-chain goods are confirmed to be received. Each payment gets assigned its own *judge* that can help resolve any disputes between the two parties.
 
 ## Terminology
 
@@ -8,7 +8,7 @@ This pallet allows users to create secure reversible payments that keep funds lo
 - NeedsReview: The payment has bee disputed and is awaiting settlement by a judge.
 - IncentivePercentage: A small share of the payment amount is held in escrow until a payment is completed/cancelled. The Incentive Percentage represents this value.
 - Resolver Account: A resolver account is assigned to every payment created, this account has the privilege to cancel/release a payment that has been disputed.
-- Remark: The pallet allows to create payments by optionally providing some extra(limited) amount of bytes, this is reffered to as Remark. This can be used by a marketplace to seperate/tag payments.
+- Remark: The pallet allows to create payments by optionally providing some extra(limited) amount of bytes, this is referred to as Remark. This can be used by a marketplace to separate/tag payments.
 - CancelBufferBlockLength: This is the time window where the recipient can dispute a cancellation request from the payment creator.
 
 ## Interface
@@ -18,7 +18,7 @@ This pallet allows users to create secure reversible payments that keep funds lo
 - `PaymentCreated { from: T::AccountId, asset: AssetIdOf<T>, amount: BalanceOf<T> },`,
 - `PaymentReleased { from: T::AccountId, to: T::AccountId }`,
 - `PaymentCancelled { from: T::AccountId, to: T::AccountId }`,
-- `PaymentCreatorRequestedRefund { from: T::AccountId, to: T::AccountId, expiry: T::BlockNumber}`
+- `PaymentCreatorRequestedRefund { from: T::AccountId, to: T::AccountId, expiry: BlockNumberFor<T>}`
 - `PaymentRefundDisputed { from: T::AccountId, to: T::AccountId }`
 - `PaymentRequestCreated { from: T::AccountId, to: T::AccountId }`
 - `PaymentRequestCompleted { from: T::AccountId, to: T::AccountId }`
@@ -42,11 +42,11 @@ This pallet allows users to create secure reversible payments that keep funds lo
 The RatesProvider module provides implementations for the following traits.
 - [`PaymentHandler`](./src/types.rs)
 
-## Types 
+## Types
 
 The `PaymentDetail` struct stores information about the payment/escrow. A "payment" in virto network is similar to an escrow, it is used to guarantee proof of funds and can be released once an agreed upon condition has reached between the payment creator and recipient. The payment lifecycle is tracked using the state field.
 
-```rust 
+```rust
 pub struct PaymentDetail<T: pallet::Config> {
 	/// type of asset used for payment
 	pub asset: AssetIdOf<T>,
@@ -55,7 +55,7 @@ pub struct PaymentDetail<T: pallet::Config> {
 	/// incentive amount that is credited to creator for resolving
 	pub incentive_amount: BalanceOf<T>,
 	/// enum to track payment lifecycle [Created, NeedsReview]
-	pub state: PaymentState<T::BlockNumber>,
+	pub state: PaymentState<BlockNumberFor<T>>,
 	/// account that can settle any disputes created in the payment
 	pub resolver_account: T::AccountId,
 	/// fee charged and recipient account details

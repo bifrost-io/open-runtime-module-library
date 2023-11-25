@@ -1,7 +1,7 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
-use codec::{Decode, Encode, MaxEncodedLen};
 use impl_trait_for_tuples::impl_for_tuples;
+use parity_scale_codec::{Decode, Encode, MaxEncodedLen};
 use sp_runtime::{DispatchResult, RuntimeDebug};
 use sp_std::{
 	cmp::{Eq, PartialEq},
@@ -24,7 +24,7 @@ pub use rewards::RewardHandler;
 use scale_info::TypeInfo;
 #[cfg(feature = "std")]
 use serde::{Deserialize, Serialize};
-pub use xcm_transfer::XcmTransfer;
+pub use xcm_transfer::{XcmTransfer, XtokensWeightInfo};
 
 pub mod arithmetic;
 pub mod asset_registry;
@@ -35,6 +35,7 @@ pub mod get_by_key;
 pub mod location;
 pub mod multi_asset;
 pub mod nft;
+pub mod parameters;
 pub mod price;
 pub mod rewards;
 pub mod xcm_transfer;

@@ -16,8 +16,8 @@
 //!   this account has the privilege to cancel/release a payment that has been
 //!   disputed.
 //! - Remark: The pallet allows to create payments by optionally providing some
-//!   extra(limited) amount of bytes, this is reffered to as Remark. This can be
-//!   used by a marketplace to seperate/tag payments.
+//!   extra(limited) amount of bytes, this is referred to as Remark. This can be
+//!   used by a marketplace to separate/tag payments.
 //! - CancelBufferBlockLength: This is the time window where the recipient can
 //!   dispute a cancellation request from the payment creator.
 
@@ -87,7 +87,7 @@ pub mod pallet {
 	pub type AssetIdOf<T> = <<T as Config>::Asset as MultiCurrency<<T as frame_system::Config>::AccountId>>::CurrencyId;
 	pub type BoundedDataOf<T> = BoundedVec<u8, <T as Config>::MaxRemarkLength>;
 	/// type of ScheduledTask used by the pallet
-	pub type ScheduledTaskOf<T> = ScheduledTask<<T as frame_system::Config>::BlockNumber>;
+	pub type ScheduledTaskOf<T> = ScheduledTask<BlockNumberFor<T>>;
 	/// list of ScheduledTasks, stored as a BoundedBTreeMap
 	pub type ScheduledTaskList<T> = BoundedBTreeMap<
 		(
@@ -109,7 +109,7 @@ pub mod pallet {
 		type DisputeResolver: DisputeResolver<Self::AccountId>;
 		/// Fee handler trait
 		type FeeHandler: FeeHandler<Self>;
-		/// Incentive percentage - amount witheld from sender
+		/// Incentive percentage - amount withheld from sender
 		#[pallet::constant]
 		type IncentivePercentage: Get<Percent>;
 		/// Maximum permitted size of `Remark`
@@ -118,7 +118,7 @@ pub mod pallet {
 		/// Buffer period - number of blocks to wait before user can claim
 		/// canceled payment
 		#[pallet::constant]
-		type CancelBufferBlockLength: Get<Self::BlockNumber>;
+		type CancelBufferBlockLength: Get<BlockNumberFor<Self>>;
 		/// Buffer period - number of blocks to wait before user can claim
 		/// canceled payment
 		#[pallet::constant]
@@ -128,7 +128,6 @@ pub mod pallet {
 	}
 
 	#[pallet::pallet]
-	#[pallet::generate_store(pub(super) trait Store)]
 	pub struct Pallet<T>(_);
 
 	#[pallet::storage]
@@ -177,7 +176,7 @@ pub mod pallet {
 		PaymentCreatorRequestedRefund {
 			from: T::AccountId,
 			to: T::AccountId,
-			expiry: T::BlockNumber,
+			expiry: BlockNumberFor<T>,
 		},
 		/// the refund request from creator was disputed by recipient
 		PaymentRefundDisputed { from: T::AccountId, to: T::AccountId },
@@ -214,7 +213,7 @@ pub mod pallet {
 		/// Hook that execute when there is leftover space in a block
 		/// This function will look for any pending scheduled tasks that can
 		/// be executed and will process them.
-		fn on_idle(now: T::BlockNumber, remaining_weight: Weight) -> Weight {
+		fn on_idle(now: BlockNumberFor<T>, remaining_weight: Weight) -> Weight {
 			const MAX_TASKS_TO_PROCESS: usize = 5;
 			// used to read the task list
 			let mut used_weight = T::WeightInfo::remove_task();
@@ -393,7 +392,7 @@ pub mod pallet {
 
 		/// Allow the creator of a payment to initiate a refund that will return
 		/// the funds after a configured amount of time that the reveiver has to
-		/// react and opose the request
+		/// react and oppose the request
 		#[pallet::call_index(4)]
 		#[pallet::weight(T::WeightInfo::request_refund())]
 		pub fn request_refund(origin: OriginFor<T>, recipient: T::AccountId) -> DispatchResultWithPostInfo {

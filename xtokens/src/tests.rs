@@ -1,12 +1,12 @@
 #![cfg(test)]
 
 use super::*;
-use codec::Encode;
 use cumulus_primitives_core::ParaId;
 use frame_support::{assert_err, assert_noop, assert_ok, traits::Currency};
 use mock::*;
 use orml_traits::{ConcreteFungibleAsset, MultiCurrency};
-use polkadot_parachain::primitives::Sibling;
+use parity_scale_codec::Encode;
+use polkadot_parachain_primitives::primitives::Sibling;
 use sp_runtime::{traits::AccountIdConversion, AccountId32};
 use xcm::{v3::OriginKind::SovereignAccount, VersionedXcm};
 use xcm_simulator::TestExt;
@@ -1178,7 +1178,7 @@ fn send_with_insufficient_fee_traps_assets() {
 		assert!(para::System::events().iter().any(|r| {
 			matches!(
 				r.event,
-				para::RuntimeEvent::PolkadotXcm(pallet_xcm::Event::<para::Runtime>::AssetsTrapped(_, _, _))
+				para::RuntimeEvent::PolkadotXcm(pallet_xcm::Event::<para::Runtime>::AssetsTrapped { .. })
 			)
 		}));
 	})
@@ -1719,5 +1719,102 @@ fn send_with_insufficient_weight_limit() {
 	ParaB::execute_with(|| {
 		// no funds should arrive - message will have failed
 		assert_eq!(ParaTokens::free_balance(CurrencyId::A, &BOB), 0);
+	});
+}
+
+#[test]
+fn send_multiasset_with_zero_fee_should_yield_an_error() {
+	TestNet::reset();
+
+	let asset_id: AssetId = X1(Junction::from(BoundedVec::try_from(b"A".to_vec()).unwrap())).into();
+	ParaA::execute_with(|| {
+		assert_noop!(
+			ParaXTokens::transfer_multiasset_with_fee(
+				Some(ALICE).into(),
+				Box::new((asset_id, 100).into()),
+				Box::new((asset_id, Fungibility::Fungible(0)).into()),
+				Box::new(
+					MultiLocation::new(
+						1,
+						X2(
+							Parachain(2),
+							Junction::AccountId32 {
+								network: None,
+								id: BOB.into()
+							},
+						)
+					)
+					.into()
+				),
+				WeightLimit::Unlimited,
+			),
+			Error::<para::Runtime>::InvalidAsset
+		);
+	});
+}
+
+#[test]
+fn send_undefined_nft_should_yield_an_error() {
+	TestNet::reset();
+
+	let fee_id: AssetId = X1(Junction::from(BoundedVec::try_from(b"A".to_vec()).unwrap())).into();
+	let nft_id: AssetId = X1(Junction::GeneralIndex(42)).into();
+
+	ParaA::execute_with(|| {
+		assert_noop!(
+			ParaXTokens::transfer_multiasset_with_fee(
+				Some(ALICE).into(),
+				Box::new((nft_id, Undefined).into()),
+				Box::new((fee_id, 100).into()),
+				Box::new(
+					MultiLocation::new(
+						1,
+						X2(
+							Parachain(2),
+							Junction::AccountId32 {
+								network: None,
+								id: BOB.into()
+							},
+						)
+					)
+					.into()
+				),
+				WeightLimit::Unlimited,
+			),
+			Error::<para::Runtime>::InvalidAsset
+		);
+	});
+}
+
+#[test]
+fn nfts_cannot_be_fee_assets() {
+	TestNet::reset();
+
+	let asset_id: AssetId = X1(Junction::from(BoundedVec::try_from(b"A".to_vec()).unwrap())).into();
+	let nft_id: AssetId = X1(Junction::GeneralIndex(42)).into();
+
+	ParaA::execute_with(|| {
+		assert_noop!(
+			ParaXTokens::transfer_multiasset_with_fee(
+				Some(ALICE).into(),
+				Box::new((asset_id, 100).into()),
+				Box::new((nft_id, Index(1)).into()),
+				Box::new(
+					MultiLocation::new(
+						1,
+						X2(
+							Parachain(2),
+							Junction::AccountId32 {
+								network: None,
+								id: BOB.into()
+							},
+						)
+					)
+					.into()
+				),
+				WeightLimit::Unlimited,
+			),
+			Error::<para::Runtime>::InvalidAsset
+		);
 	});
 }

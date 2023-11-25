@@ -11,7 +11,7 @@ use frame_support::{
 };
 use mock::{para::RuntimeCall, *};
 use orml_traits::MultiCurrency;
-use polkadot_parachain::primitives::Sibling;
+use polkadot_parachain_primitives::primitives::Sibling;
 
 use sp_runtime::{
 	traits::{AccountIdConversion, BadOrigin, Dispatchable},
@@ -49,11 +49,15 @@ fn print_events<Runtime: frame_system::Config>(name: &'static str) {
 		.for_each(|r| println!("> {:?}", r.event));
 }
 
-fn dummy_metadata() -> AssetMetadata<<para::Runtime as orml_asset_registry::Config>::Balance, CustomMetadata> {
+fn dummy_metadata() -> AssetMetadata<
+	<para::Runtime as orml_asset_registry::Config>::Balance,
+	CustomMetadata,
+	<para::Runtime as orml_asset_registry::Config>::StringLimit,
+> {
 	AssetMetadata {
 		decimals: 12,
-		name: "para A native token".as_bytes().to_vec(),
-		symbol: "paraA".as_bytes().to_vec(),
+		name: BoundedVec::truncate_from("para A native token".as_bytes().to_vec()),
+		symbol: BoundedVec::truncate_from("paraA".as_bytes().to_vec()),
 		existential_deposit: 0,
 		location: Some(
 			MultiLocation::new(
@@ -75,8 +79,8 @@ fn genesis_issuance_should_work() {
 	ParaG::execute_with(|| {
 		let metadata1 = AssetMetadata {
 			decimals: 12,
-			name: "para G native token".as_bytes().to_vec(),
-			symbol: "paraG".as_bytes().to_vec(),
+			name: BoundedVec::truncate_from("para G native token".as_bytes().to_vec()),
+			symbol: BoundedVec::truncate_from("paraG".as_bytes().to_vec()),
 			existential_deposit: 0,
 			location: None,
 			additional: CustomMetadata {
@@ -85,8 +89,8 @@ fn genesis_issuance_should_work() {
 		};
 		let metadata2 = AssetMetadata {
 			decimals: 12,
-			name: "para G foreign token".as_bytes().to_vec(),
-			symbol: "paraF".as_bytes().to_vec(),
+			name: BoundedVec::truncate_from("para G foreign token".as_bytes().to_vec()),
+			symbol: BoundedVec::truncate_from("paraF".as_bytes().to_vec()),
 			existential_deposit: 0,
 			location: None,
 			additional: CustomMetadata {
@@ -265,8 +269,8 @@ fn test_sequential_id_normal_behavior() {
 		let metadata1 = dummy_metadata();
 
 		let metadata2 = AssetMetadata {
-			name: "para A native token 2".as_bytes().to_vec(),
-			symbol: "paraA2".as_bytes().to_vec(),
+			name: BoundedVec::truncate_from("para A native token 2".as_bytes().to_vec()),
+			symbol: BoundedVec::truncate_from("paraA2".as_bytes().to_vec()),
 			location: Some(
 				MultiLocation::new(
 					1,
@@ -463,8 +467,8 @@ fn test_update_metadata_works() {
 
 		let new_metadata = AssetMetadata {
 			decimals: 11,
-			name: "para A native token2".as_bytes().to_vec(),
-			symbol: "paraA2".as_bytes().to_vec(),
+			name: BoundedVec::truncate_from("para A native token2".as_bytes().to_vec()),
+			symbol: BoundedVec::truncate_from("paraA2".as_bytes().to_vec()),
 			existential_deposit: 1,
 			location: Some(
 				MultiLocation::new(
@@ -601,28 +605,71 @@ fn from_unversioned_to_v2_storage() {
 		// StorageVersion is 0 before migration
 		assert_eq!(StorageVersion::get::<Pallet<para::Runtime>>(), 0);
 
-		// V2 storage key
-		let old_key = xcm::v2::MultiLocation::new(
+		// V2 storage
+		let old_multilocation_0 = xcm::v2::MultiLocation::new(
 			0,
 			xcm::v2::Junctions::X1(xcm::v2::Junction::GeneralKey(vec![0].try_into().unwrap())),
-		)
-		.encode();
+		);
+		let old_multilocation_1 = xcm::v2::MultiLocation::new(
+			1,
+			xcm::v2::Junctions::X2(
+				xcm::v2::Junction::Parachain(2096),
+				xcm::v2::Junction::GeneralKey(vec![0, 0, 0, 0, 0, 0, 0, 0, 0].try_into().unwrap()),
+			),
+		);
+		let old_multilocation_2 = xcm::v2::MultiLocation::new(
+			1,
+			xcm::v2::Junctions::X2(
+				xcm::v2::Junction::Parachain(2096),
+				xcm::v2::Junction::GeneralKey(vec![1, 1].try_into().unwrap()),
+			),
+		);
 
-		let asset_id: para::ParaAssetId = 5u32;
+		let asset_id_0: para::ParaAssetId = 5u32;
+		let asset_id_1: para::ParaAssetId = 6u32;
+		let asset_id_2: para::ParaAssetId = 7u32;
 
 		// Store raw xcm::v2 data
 		put_storage_value(
 			module_prefix,
 			storage_prefix,
-			&Blake2_128Concat::hash(&old_key),
-			asset_id,
+			&Twox64Concat::hash(&old_multilocation_0.encode()),
+			asset_id_0,
+		);
+		put_storage_value(
+			module_prefix,
+			storage_prefix,
+			&Twox64Concat::hash(&old_multilocation_1.encode()),
+			asset_id_1,
+		);
+		put_storage_value(
+			module_prefix,
+			storage_prefix,
+			&Twox64Concat::hash(&old_multilocation_2.encode()),
+			asset_id_2,
 		);
 
 		// V3 storage key
-		let new_key = MultiLocation::new(0, X1(Junction::from(BoundedVec::try_from(vec![0]).unwrap())));
+		let new_multilocation_0 = MultiLocation::new(0, X1(Junction::from(BoundedVec::try_from(vec![0]).unwrap())));
+		let new_multilocation_1 = MultiLocation::new(
+			1,
+			X2(
+				Parachain(2096),
+				Junction::from(BoundedVec::try_from(vec![0, 0, 0, 0, 0, 0, 0, 0, 0]).unwrap()),
+			),
+		);
+		let new_multilocation_2 = MultiLocation::new(
+			1,
+			X2(
+				Parachain(2096),
+				Junction::from(BoundedVec::try_from(vec![1, 1]).unwrap()),
+			),
+		);
 
 		// Assert new StorageKey still does not exist
-		assert_eq!(AssetRegistry::location_to_asset_id(new_key), None);
+		assert_eq!(AssetRegistry::location_to_asset_id(new_multilocation_0), None);
+		assert_eq!(AssetRegistry::location_to_asset_id(new_multilocation_1), None);
+		assert_eq!(AssetRegistry::location_to_asset_id(new_multilocation_2), None);
 
 		// Run StorageKey migration
 		crate::Migration::<para::Runtime>::on_runtime_upgrade();
@@ -631,17 +678,95 @@ fn from_unversioned_to_v2_storage() {
 		assert_eq!(StorageVersion::get::<Pallet<para::Runtime>>(), 2);
 
 		// Assert the StorageKey exists and has been migrated to xcm::v3
-		assert_eq!(AssetRegistry::location_to_asset_id(new_key), Some(asset_id));
+		assert_eq!(
+			AssetRegistry::location_to_asset_id(new_multilocation_0),
+			Some(asset_id_0)
+		);
+		assert_eq!(
+			AssetRegistry::location_to_asset_id(new_multilocation_1),
+			Some(asset_id_1)
+		);
+		assert_eq!(
+			AssetRegistry::location_to_asset_id(new_multilocation_2),
+			Some(asset_id_2)
+		);
 
 		// Assert the old key does not exist anymore
 		assert!(get_storage_value::<para::ParaAssetId>(
 			module_prefix,
 			storage_prefix,
-			&Blake2_128Concat::hash(&old_key),
+			&Twox64Concat::hash(&old_multilocation_0.encode()),
+		)
+		.is_none());
+		assert!(get_storage_value::<para::ParaAssetId>(
+			module_prefix,
+			storage_prefix,
+			&Twox64Concat::hash(&old_multilocation_1.encode()),
+		)
+		.is_none());
+		assert!(get_storage_value::<para::ParaAssetId>(
+			module_prefix,
+			storage_prefix,
+			&Twox64Concat::hash(&old_multilocation_2.encode()),
 		)
 		.is_none());
 
 		// Assert further calls are no-op
 		assert_eq!(crate::Migration::<para::Runtime>::on_runtime_upgrade(), Weight::zero());
+	});
+}
+
+#[test]
+fn test_decode_bounded_vec() {
+	TestNet::reset();
+
+	pub mod unbounded {
+		use super::*;
+
+		#[frame_support::storage_alias]
+		pub type Metadata<T: orml_asset_registry::Config> = StorageMap<
+			orml_asset_registry::Pallet<T>,
+			Twox64Concat,
+			<T as orml_asset_registry::Config>::AssetId,
+			AssetMetadata<
+				<T as orml_asset_registry::Config>::Balance,
+				<T as orml_asset_registry::Config>::CustomMetadata,
+			>,
+			OptionQuery,
+		>;
+
+		#[derive(TypeInfo, Encode, Decode, Clone, Eq, PartialEq, RuntimeDebug)]
+		pub struct AssetMetadata<Balance, CustomMetadata: Parameter + Member + TypeInfo> {
+			pub decimals: u32,
+			pub name: Vec<u8>,
+			pub symbol: Vec<u8>,
+			pub existential_deposit: Balance,
+			pub location: Option<VersionedMultiLocation>,
+			pub additional: CustomMetadata,
+		}
+	}
+
+	ParaA::execute_with(|| {
+		let para_name = "para A native token".as_bytes().to_vec();
+		let para_symbol = "paraA".as_bytes().to_vec();
+		unbounded::Metadata::<para::Runtime>::insert(
+			0,
+			unbounded::AssetMetadata {
+				decimals: 12,
+				name: para_name.clone(),
+				symbol: para_symbol.clone(),
+				existential_deposit: 0,
+				location: None,
+				additional: CustomMetadata {
+					fee_per_second: 1_000_000_000_000,
+				},
+			},
+		);
+
+		let asset_metadata = Metadata::<para::Runtime>::get(0);
+		assert_eq!(
+			asset_metadata.map(|m| (m.name.to_vec(), m.symbol.to_vec())),
+			Some((para_name, para_symbol))
+		);
 	});
 }
