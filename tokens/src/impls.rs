@@ -99,6 +99,7 @@ where
 
 impl<AccountId, TestKey, A, B> fungibles::Mutate<AccountId> for Combiner<AccountId, TestKey, A, B>
 where
+	AccountId: Eq,
 	TestKey: Contains<<B as fungibles::Inspect<AccountId>>::AssetId>,
 	A: fungible::Mutate<AccountId, Balance = <B as fungibles::Inspect<AccountId>>::Balance>,
 	B: fungibles::Mutate<AccountId>,
@@ -146,6 +147,7 @@ where
 
 impl<AccountId, TestKey, A, B> fungibles::Unbalanced<AccountId> for Combiner<AccountId, TestKey, A, B>
 where
+	AccountId: Eq,
 	TestKey: Contains<<B as fungibles::Inspect<AccountId>>::AssetId>,
 	A: fungible::Mutate<AccountId, Balance = <B as fungibles::Inspect<AccountId>>::Balance>,
 	B: fungibles::Mutate<AccountId>,
@@ -272,6 +274,7 @@ where
 
 impl<AccountId, T, C, B, GetCurrencyId> fungible::Mutate<AccountId> for Mapper<AccountId, T, C, B, GetCurrencyId>
 where
+	AccountId: Eq,
 	T: fungibles::Mutate<AccountId, Balance = B>,
 	C: ConvertBalance<
 		<T as fungibles::Inspect<AccountId>>::Balance,
