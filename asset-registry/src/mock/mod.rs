@@ -162,8 +162,8 @@ pub type Amount = i128;
 decl_test_parachain! {
 	pub struct ParaA {
 		Runtime = para::Runtime,
-		XcmpMessageHandler = para::XcmpQueue,
-		DmpMessageHandler = para::DmpQueue,
+		XcmpMessageHandler = para::MsgQueue,
+		DmpMessageHandler = para::MsgQueue,
 		new_ext = para_ext(1, None),
 	}
 }
@@ -171,8 +171,8 @@ decl_test_parachain! {
 decl_test_parachain! {
 	pub struct ParaB {
 		Runtime = para::Runtime,
-		XcmpMessageHandler = para::XcmpQueue,
-		DmpMessageHandler = para::DmpQueue,
+		XcmpMessageHandler = para::MsgQueue,
+		DmpMessageHandler = para::MsgQueue,
 		new_ext = para_ext(2, None),
 	}
 }
@@ -180,8 +180,8 @@ decl_test_parachain! {
 decl_test_parachain! {
 	pub struct ParaC {
 		Runtime = para::Runtime,
-		XcmpMessageHandler = para::XcmpQueue,
-		DmpMessageHandler = para::DmpQueue,
+		XcmpMessageHandler = para::MsgQueue,
+		DmpMessageHandler = para::MsgQueue,
 		new_ext = para_ext(3, None),
 	}
 }
@@ -189,8 +189,8 @@ decl_test_parachain! {
 decl_test_parachain! {
 	pub struct ParaG {
 		Runtime = para::Runtime,
-		XcmpMessageHandler = para::XcmpQueue,
-		DmpMessageHandler = para::DmpQueue,
+		XcmpMessageHandler = para::MsgQueue,
+		DmpMessageHandler = para::MsgQueue,
 		new_ext = para_ext(4, Some((
 			vec![(
 				4,

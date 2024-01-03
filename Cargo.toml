@@ -61,6 +61,7 @@ pallet-vesting = { git = "https://github.com/paritytech/polkadot-sdk", branch = 
 pallet-xcm = { git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.4.0", default-features = false }
 parachain-info = { package = "staging-parachain-info",  git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.4.0", default-features = false }
 polkadot-core-primitives = { git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.4.0", default-features = false }
+parachains-common = { git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.4.0", default-features = false }
 polkadot-parachain-primitives = { git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.4.0", default-features = false }
 polkadot-primitives = { git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.4.0", default-features = false }
 polkadot-runtime-common = { git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.4.0", default-features = false }

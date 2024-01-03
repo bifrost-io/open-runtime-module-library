@@ -183,8 +183,8 @@ pub type Amount = i128;
 decl_test_parachain! {
 	pub struct ParaA {
 		Runtime = para::Runtime,
-		XcmpMessageHandler = para::XcmpQueue,
-		DmpMessageHandler = para::DmpQueue,
+		XcmpMessageHandler = para::MsgQueue,
+		DmpMessageHandler = para::MsgQueue,
 		new_ext = para_ext(1),
 	}
 }
@@ -192,8 +192,8 @@ decl_test_parachain! {
 decl_test_parachain! {
 	pub struct ParaB {
 		Runtime = para::Runtime,
-		XcmpMessageHandler = para::XcmpQueue,
-		DmpMessageHandler = para::DmpQueue,
+		XcmpMessageHandler = para::MsgQueue,
+		DmpMessageHandler = para::MsgQueue,
 		new_ext = para_ext(2),
 	}
 }
@@ -201,8 +201,8 @@ decl_test_parachain! {
 decl_test_parachain! {
 	pub struct ParaC {
 		Runtime = para_teleport::Runtime,
-		XcmpMessageHandler = para_teleport::XcmpQueue,
-		DmpMessageHandler = para_teleport::DmpQueue,
+		XcmpMessageHandler = para_teleport::MsgQueue,
+		DmpMessageHandler = para_teleport::MsgQueue,
 		new_ext = para_teleport_ext(3),
 	}
 }
@@ -212,8 +212,8 @@ decl_test_parachain! {
 decl_test_parachain! {
 	pub struct ParaD {
 		Runtime = para_relative_view::Runtime,
-		XcmpMessageHandler = para::XcmpQueue,
-		DmpMessageHandler = para::DmpQueue,
+		XcmpMessageHandler = para::MsgQueue,
+		DmpMessageHandler = para::MsgQueue,
 		new_ext = para_ext(4),
 	}
 }

@@ -76,7 +76,9 @@ impl pallet_scheduler::Config for Runtime {
 	type Preimages = Preimage;
 }
 
-impl pallet_root_testing::Config for Runtime {}
+impl pallet_root_testing::Config for Runtime {
+	type RuntimeEvent = RuntimeEvent;
+}
 
 #[derive(Clone, Encode, Decode, Eq, PartialEq, Ord, PartialOrd, Debug, TypeInfo)]
 pub enum MockAsOriginId {

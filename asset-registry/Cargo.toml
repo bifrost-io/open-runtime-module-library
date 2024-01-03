@@ -38,6 +38,7 @@ pallet-balances = { workspace = true, features = ["std"] }
 sp-core = { workspace = true, features = ["std"] }
 sp-io = { workspace = true, features = ["std"] }
 pallet-message-queue = { workspace = true, features = ["std"] }
+parachains-common = { workspace = true, features = ["std"] }
 
 # cumulus
 cumulus-primitives-core = { workspace = true, features = ["std"] }

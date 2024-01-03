@@ -65,7 +65,7 @@ use sp_runtime::{
 	},
 	ArithmeticError, DispatchError, DispatchResult, FixedPointOperand, RuntimeDebug, TokenError,
 };
-use sp_std::{cmp, convert::Infallible, marker, prelude::*, vec::Vec};
+use sp_std::{cmp, convert::Infallible, marker, prelude::*, vec, vec::Vec};
 
 use orml_traits::{
 	arithmetic::{self, Signed},

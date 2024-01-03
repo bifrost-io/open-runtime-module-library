@@ -36,6 +36,7 @@ std = [
 	'frame-system/std',
 	'log/std',
 	'orml-traits/std',
+	'orml-tokens/std',
 	'parity-scale-codec/std',
 	'scale-info/std',
 	'sp-runtime/std',
