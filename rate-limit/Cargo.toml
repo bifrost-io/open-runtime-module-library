@@ -1,7 +1,7 @@
 [package]
-name = "orml-oracle"
-description = "Oracle module that makes off-chain data available on-chain."
-repository = "https://github.com/open-web3-stack/open-runtime-module-library/tree/master/oracle"
+name = "orml-rate-limit"
+description = "Provides way to config rate limiter for limit some operation."
+repository = "https://github.com/open-web3-stack/open-runtime-module-library/tree/master/rate-limit"
 license = "Apache-2.0"
 version = "0.8.0"
 authors = ["Laminar Developers <hello@laminar.one>"]
@@ -14,22 +14,20 @@ serde = { workspace = true, optional = true }
 
 frame-support = { workspace = true }
 frame-system = { workspace = true }
-sp-application-crypto = { workspace = true }
+sp-core = { workspace = true }
 sp-io = { workspace = true }
 sp-runtime = { workspace = true }
 sp-std = { workspace = true }
-frame-benchmarking = { workspace = true, optional = true }
 
 orml-traits = { path = "../traits", version = "0.8.0", default-features = false }
 orml-utilities = { path = "../utilities", version = "0.8.0", default-features = false }
 
 [dev-dependencies]
-sp-core = { workspace = true }
+pallet-timestamp = { workspace = true, features = ["std"] }
 
 [features]
 default = [ "std" ]
 std = [
-	"frame-benchmarking?/std",
 	"frame-support/std",
 	"frame-system/std",
 	"orml-traits/std",
@@ -37,19 +35,18 @@ std = [
 	"parity-scale-codec/std",
 	"scale-info/std",
 	"serde",
-	"sp-application-crypto/std",
+	"sp-core/std",
 	"sp-io/std",
 	"sp-runtime/std",
 	"sp-std/std",
+]
+runtime-benchmarks = [
+	"frame-support/runtime-benchmarks",
+	"frame-system/runtime-benchmarks",
+	"sp-runtime/runtime-benchmarks",
 ]
 try-runtime = [
 	"frame-support/try-runtime",
 	"frame-system/try-runtime",
 	"sp-runtime/try-runtime",
-]
-runtime-benchmarks = [
-	"frame-benchmarking/runtime-benchmarks",
-	"frame-support/runtime-benchmarks",
-	"frame-system/runtime-benchmarks",
-	"sp-runtime/runtime-benchmarks",
 ]
