@@ -31,19 +31,22 @@ use frame_support::{
 	dispatch::{DispatchClass, GetDispatchInfo, Pays},
 	pallet_prelude::*,
 	traits::{
-		schedule::{v1::Named as ScheduleNamed, DispatchTime, Priority},
-		EitherOfDiverse, EnsureOrigin, Get, IsType, OriginTrait,
+		schedule::{DispatchTime, Priority},
+		Bounded, EitherOfDiverse, EnsureOrigin, Get, IsType, OriginTrait,
 	},
 };
 use frame_system::{pallet_prelude::*, EnsureRoot, EnsureSigned};
 use parity_scale_codec::MaxEncodedLen;
 use scale_info::TypeInfo;
 use sp_core::defer;
+use sp_io::hashing::blake2_256;
 use sp_runtime::{
 	traits::{CheckedSub, Dispatchable, Hash, Saturating},
 	ArithmeticError, DispatchError, DispatchResult, Either, RuntimeDebug,
 };
 use sp_std::prelude::*;
+
+use frame_support::traits::schedule::v3::Named as ScheduleNamed;
 
 mod mock;
 mod tests;
@@ -72,7 +75,9 @@ mod helper {
 	use std::cell::RefCell;
 
 	thread_local! {
-		static NESTED_MAX_ENCODED_LEN: RefCell<bool> = RefCell::new(false);
+		static NESTED_MAX_ENCODED_LEN: RefCell<bool> = const {
+			RefCell::new(false)
+		};
 	}
 
 	pub fn set_nested_max_encoded_len(val: bool) {
@@ -195,6 +200,7 @@ pub mod module {
 	#[pallet::origin]
 	pub type Origin<T> = DelayedOrigin<BlockNumberFor<T>, <T as Config>::PalletsOrigin>;
 	pub(crate) type CallOf<T> = <T as Config>::RuntimeCall;
+	pub(crate) type BoundedCallOf<T> = Bounded<CallOf<T>, <T as frame_system::Config>::Hashing>;
 
 	#[pallet::config]
 	pub trait Config: frame_system::Config {
@@ -215,7 +221,12 @@ pub mod module {
 			+ GetDispatchInfo;
 
 		/// The Scheduler.
-		type Scheduler: ScheduleNamed<BlockNumberFor<Self>, <Self as Config>::RuntimeCall, Self::PalletsOrigin>;
+		type Scheduler: ScheduleNamed<
+			BlockNumberFor<Self>,
+			<Self as Config>::RuntimeCall,
+			Self::PalletsOrigin,
+			Hasher = Self::Hashing,
+		>;
 
 		/// The type represent origin that can be dispatched by other origins.
 		type AsOriginId: Parameter + AsOriginId<<Self as frame_system::Config>::RuntimeOrigin, Self::PalletsOrigin>;
@@ -330,7 +341,7 @@ pub mod module {
 			when: DispatchTime<BlockNumberFor<T>>,
 			priority: Priority,
 			with_delayed_origin: bool,
-			call: Box<CallOf<T>>,
+			call: Box<BoundedCallOf<T>>,
 		) -> DispatchResult {
 			T::AuthorityConfig::check_schedule_dispatch(origin.clone(), priority)?;
 
@@ -357,15 +368,9 @@ pub mod module {
 			};
 			let pallets_origin = schedule_origin.caller().clone();
 
-			T::Scheduler::schedule_named(
-				Encode::encode(&(&pallets_origin, id)),
-				when,
-				None,
-				priority,
-				pallets_origin.clone(),
-				*call,
-			)
-			.map_err(|_| Error::<T>::FailedToSchedule)?;
+			let task_name = (&pallets_origin, id).using_encoded(blake2_256);
+			T::Scheduler::schedule_named(task_name, when, None, priority, pallets_origin.clone(), *call)
+				.map_err(|_| Error::<T>::FailedToSchedule)?;
 
 			Self::deposit_event(Event::Scheduled {
 				origin: pallets_origin,
@@ -394,8 +399,8 @@ pub mod module {
 			};
 
 			T::AuthorityConfig::check_fast_track_schedule(origin, &initial_origin, new_delay)?;
-			T::Scheduler::reschedule_named((&initial_origin, task_id).encode(), when)
-				.map_err(|_| Error::<T>::FailedToFastTrack)?;
+			let task_name = (&initial_origin, task_id).using_encoded(blake2_256);
+			T::Scheduler::reschedule_named(task_name, when).map_err(|_| Error::<T>::FailedToFastTrack)?;
 
 			Self::deposit_event(Event::FastTracked {
 				origin: *initial_origin,
@@ -416,11 +421,9 @@ pub mod module {
 		) -> DispatchResult {
 			T::AuthorityConfig::check_delay_schedule(origin, &initial_origin)?;
 
-			T::Scheduler::reschedule_named(
-				(&initial_origin, task_id).encode(),
-				DispatchTime::After(additional_delay),
-			)
-			.map_err(|_| Error::<T>::FailedToDelay)?;
+			let task_name = (&initial_origin, task_id).using_encoded(blake2_256);
+			T::Scheduler::reschedule_named(task_name, DispatchTime::After(additional_delay))
+				.map_err(|_| Error::<T>::FailedToDelay)?;
 
 			let now = frame_system::Pallet::<T>::block_number();
 			let dispatch_at = now.saturating_add(additional_delay);
@@ -442,7 +445,9 @@ pub mod module {
 			task_id: ScheduleTaskIndex,
 		) -> DispatchResult {
 			T::AuthorityConfig::check_cancel_schedule(origin, &initial_origin)?;
-			T::Scheduler::cancel_named((&initial_origin, task_id).encode()).map_err(|_| Error::<T>::FailedToCancel)?;
+
+			let task_name = (&initial_origin, task_id).using_encoded(blake2_256);
+			T::Scheduler::cancel_named(task_name).map_err(|_| Error::<T>::FailedToCancel)?;
 
 			Self::deposit_event(Event::Cancelled {
 				origin: *initial_origin,
