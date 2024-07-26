@@ -32,7 +32,7 @@ use frame_support::{
 	weights::Weight,
 	Parameter,
 };
-use frame_system::{ensure_root, ensure_signed, pallet_prelude::*};
+use frame_system::{ensure_signed, pallet_prelude::*};
 pub use orml_traits::{CombineData, DataFeeder, DataProvider, DataProviderExtended, OnNewData};
 use orml_utilities::OrderedSet;
 use scale_info::TypeInfo;
@@ -102,7 +102,7 @@ pub mod module {
 		type OracleKey: Parameter + Member + MaxEncodedLen;
 
 		/// The data value type
-		type OracleValue: Parameter + Member + Ord + MaxEncodedLen;
+		type OracleValue: sp_runtime::FixedPointNumber + Parameter + Member + Ord + MaxEncodedLen;
 
 		/// The root operator account id, record all sudo feeds on this account.
 		#[pallet::constant]
@@ -122,8 +122,7 @@ pub mod module {
 		#[pallet::constant]
 		type MaxFeedValues: Get<u32>;
 
-		#[cfg(feature = "runtime-benchmarks")]
-		type BenchmarkHelper: BenchmarkHelper<Self::OracleKey, Self::OracleValue, Self::MaxFeedValues>;
+		type ControlOrigin: EnsureOrigin<Self::RuntimeOrigin>;
 	}
 
 	#[pallet::error]
@@ -141,6 +140,14 @@ pub mod module {
 		NewFeedData {
 			sender: T::AccountId,
 			values: Vec<(T::OracleKey, T::OracleValue)>,
+		},
+		FeedTimestampReachingLimit {
+			values: Vec<TimestampedValueOf<T, I>>,
+			prev: TimestampedValueOf<T, I>,
+		},
+		FeedValueReachingLimit {
+			value: TimestampedValueOf<T, I>,
+			prev: TimestampedValueOf<T, I>,
 		},
 	}
 
@@ -190,7 +197,7 @@ pub mod module {
 		) -> DispatchResultWithPostInfo {
 			let feeder = ensure_signed(origin.clone())
 				.map(Some)
-				.or_else(|_| ensure_root(origin).map(|_| None))?;
+				.or_else(|_| T::ControlOrigin::ensure_origin_or_root(origin).map(|_| None))?;
 
 			let who = Self::ensure_account(feeder)?;
 
