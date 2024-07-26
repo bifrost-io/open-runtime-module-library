@@ -6,7 +6,7 @@ use frame_support::{
 	construct_runtime, derive_impl, parameter_types,
 	traits::{ConstU32, SortedMembers},
 };
-use sp_runtime::{traits::IdentityLookup, BuildStorage};
+use sp_runtime::{traits::IdentityLookup, BuildStorage, FixedU128};
 
 use std::cell::RefCell;
 
@@ -16,7 +16,7 @@ mod oracle {
 
 pub type AccountId = u128;
 type Key = u32;
-type Value = u32;
+type Value = FixedU128;
 
 #[derive_impl(frame_system::config_preludes::TestDefaultConfig as frame_system::DefaultConfig)]
 impl frame_system::Config for Test {
@@ -45,12 +45,10 @@ impl Timestamp {
 	}
 }
 
-use sp_arithmetic::per_things::Permill;
-
 parameter_types! {
 	pub const RootOperatorAccountId: AccountId = 4;
 	pub const MaxFeedValues: u32 = 5;
-	pub const MinimumValueInterval: Permill = Permill::from_percent(1);
+	pub const MinimumValueInterval: FixedU128 = FixedU128::from_inner(10_000_000_000_000_000); // 1%
 }
 
 pub struct Members;

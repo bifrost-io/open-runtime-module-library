@@ -2,7 +2,6 @@ use crate::{Config, MomentOf, TimestampedValueOf};
 use crate::{Event, Pallet};
 use frame_support::traits::{Get, Time};
 use orml_traits::CombineData;
-use sp_arithmetic::per_things::Permill;
 use sp_runtime::traits::Saturating;
 use sp_std::{marker, prelude::*};
 
@@ -28,7 +27,7 @@ where
 	MinimumCount: Get<u32>,
 	ExpiresIn: Get<MomentOf<T, I>>,
 	MinimumTimestampInterval: Get<MomentOf<T, I>>,
-	MinimumValueInterval: Get<Permill>,
+	MinimumValueInterval: Get<<T as Config<I>>::OracleValue>,
 {
 	fn combine_data(
 		_key: &<T as Config<I>>::OracleKey,
@@ -60,7 +59,7 @@ where
 
 		let minimum_value_interval = MinimumValueInterval::get();
 		if let Some(ref prev) = prev_value {
-			let diff = minimum_value_interval.mul_floor(prev.value);
+			let diff = minimum_value_interval.saturating_mul(prev.value);
 			value.value = if value.value < prev.value.saturating_sub(diff) {
 				Pallet::<T, I>::deposit_event(Event::FeedValueReachingLimit {
 					value: *value,

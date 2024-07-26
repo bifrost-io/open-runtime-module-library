@@ -102,7 +102,7 @@ pub mod module {
 		type OracleKey: Parameter + Member + MaxEncodedLen;
 
 		/// The data value type
-		type OracleValue: sp_arithmetic::traits::AtLeast32Bit + sp_arithmetic::traits::Unsigned + Parameter + Member + Ord + MaxEncodedLen + Copy;
+		type OracleValue: sp_runtime::FixedPointNumber + Parameter + Member + Ord + MaxEncodedLen;
 
 		/// The root operator account id, record all sudo feeds on this account.
 		#[pallet::constant]
