@@ -354,3 +354,87 @@ fn values_are_updated_on_feed() {
 		);
 	});
 }
+
+#[test]
+fn values_are_updated_on_feed2() {
+	new_test_ext().execute_with(|| {
+		assert_ok!(ModuleOracle::feed_values(
+			RuntimeOrigin::signed(1),
+			vec![(50, 900)].try_into().unwrap()
+		));
+		assert_ok!(ModuleOracle::feed_values(
+			RuntimeOrigin::signed(2),
+			vec![(50, 1000)].try_into().unwrap()
+		));
+
+		assert_eq!(ModuleOracle::values(50), None);
+
+		// Upon the third price feed, the value is updated immediately after `combine`
+		// can produce valid result.
+		assert_ok!(ModuleOracle::feed_values(
+			RuntimeOrigin::signed(3),
+			vec![(50, 1100)].try_into().unwrap()
+		));
+		assert_eq!(
+			ModuleOracle::values(50),
+			Some(TimestampedValue {
+				value: 1000,
+				timestamp: 12345,
+			})
+		);
+
+		// not set timestamp
+		ModuleOracle::on_finalize(1);
+		assert_ok!(ModuleOracle::feed_values(
+			RuntimeOrigin::signed(1),
+			vec![(50, 1900)].try_into().unwrap()
+		));
+		assert_ok!(ModuleOracle::feed_values(
+			RuntimeOrigin::signed(2),
+			vec![(50, 2000)].try_into().unwrap()
+		));
+		assert_ok!(ModuleOracle::feed_values(
+			RuntimeOrigin::signed(3),
+			vec![(50, 2100)].try_into().unwrap()
+		));
+		assert_eq!(
+			ModuleOracle::values(50),
+			Some(TimestampedValue {
+				value: 1000,
+				timestamp: 12345,
+			})
+		);
+
+
+		// after set timestamp
+		ModuleOracle::on_finalize(1);
+		Timestamp::set_timestamp(23456);
+
+		assert_ok!(ModuleOracle::feed_values(
+			RuntimeOrigin::signed(1),
+			vec![(50, 1900)].try_into().unwrap()
+		));
+		assert_ok!(ModuleOracle::feed_values(
+			RuntimeOrigin::signed(2),
+			vec![(50, 2000)].try_into().unwrap()
+		));
+		assert_eq!(
+			ModuleOracle::values(50),
+			Some(TimestampedValue {
+				value: 1000,
+				timestamp: 12345,
+			})
+		);
+		assert_ok!(ModuleOracle::feed_values(
+			RuntimeOrigin::signed(3),
+			vec![(50, 2100)].try_into().unwrap()
+		));
+		assert_eq!(
+			ModuleOracle::values(50),
+			Some(TimestampedValue {
+				value: 1010,
+				timestamp: 23456,
+			})
+		);
+	});
+}

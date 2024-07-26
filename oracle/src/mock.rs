@@ -45,9 +45,12 @@ impl Timestamp {
 	}
 }
 
+use sp_arithmetic::per_things::Permill;
+
 parameter_types! {
 	pub const RootOperatorAccountId: AccountId = 4;
 	pub const MaxFeedValues: u32 = 5;
+	pub const MinimumValueInterval: Permill = Permill::from_percent(1);
 }
 
 pub struct Members;
@@ -62,11 +65,18 @@ impl SortedMembers<AccountId> for Members {
 		MEMBERS.with(|v| v.borrow_mut().push(*who));
 	}
 }
+use frame_system::EnsureSignedBy;
+pub struct AdminOrigin;
+impl SortedMembers<AccountId> for AdminOrigin {
+	fn sorted_members() -> Vec<AccountId> {
+		vec![RootOperatorAccountId::get()]
+	}
+}
 
 impl Config for Test {
 	type RuntimeEvent = RuntimeEvent;
 	type OnNewData = ();
-	type CombineData = DefaultCombineData<Self, ConstU32<3>, ConstU32<600>>;
+	type CombineData = DefaultCombineData<Self, ConstU32<3>, ConstU32<600>, ConstU32<600>, MinimumValueInterval>;
 	type Time = Timestamp;
 	type OracleKey = Key;
 	type OracleValue = Value;
@@ -75,8 +85,7 @@ impl Config for Test {
 	type WeightInfo = ();
 	type MaxHasDispatchedSize = ConstU32<100>;
 	type MaxFeedValues = MaxFeedValues;
-	#[cfg(feature = "runtime-benchmarks")]
-	type BenchmarkHelper = ();
+	type ControlOrigin = EnsureSignedBy<AdminOrigin, AccountId>;
 }
 
 type Block = frame_system::mocking::MockBlock<Test>;
