@@ -255,6 +255,12 @@ impl<T: Config<I>, I: 'static> Pallet<T, I> {
 				timestamp: now,
 			};
 			RawValues::<T, I>::insert(&who, key, timestamped);
+			if who == T::RootOperatorAccountId::get() {
+				// Root operator feeds, no need to combine.
+				<Values<T, I>>::insert(key, timestamped);
+				T::OnNewData::on_new_data(&who, key, value);
+				continue;
+			}
 
 			// Update `Values` storage if `combined` yielded result.
 			if let Some(combined) = Self::combined(key) {
