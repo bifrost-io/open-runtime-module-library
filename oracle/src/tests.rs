@@ -103,6 +103,22 @@ fn should_feed_values_from_root() {
 				timestamp: 12345,
 			})
 		);
+
+		assert_eq!(
+			ModuleOracle::values(50),
+			Some(TimestampedValue {
+				value: FixedU128::from(1000u128),
+				timestamp: 12345,
+			})
+		);
+
+		assert_eq!(
+			ModuleOracle::values(53),
+			Some(TimestampedValue {
+				value: FixedU128::from(700u128),
+				timestamp: 12345,
+			})
+		);
 	});
 }
 
