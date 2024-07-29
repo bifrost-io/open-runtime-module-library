@@ -7,27 +7,27 @@ use sp_std::{marker, prelude::*};
 
 /// Sort by value and returns median timestamped value.
 /// Returns prev_value if not enough valid values.
-pub struct DefaultCombineData<T, MinimumCount, ExpiresIn, MinimumTimestampInterval, MinimumValueInterval, I = ()>(
+pub struct DefaultCombineData<T, MinimumCount, ExpiresIn, MinimumTimestampInterval, MaximumValueInterval, I = ()>(
 	marker::PhantomData<(
 		T,
 		I,
 		MinimumCount,
 		ExpiresIn,
 		MinimumTimestampInterval,
-		MinimumValueInterval,
+		MaximumValueInterval,
 	)>,
 );
 
-impl<T, I, MinimumCount, ExpiresIn, MinimumTimestampInterval, MinimumValueInterval>
+impl<T, I, MinimumCount, ExpiresIn, MinimumTimestampInterval, MaximumValueInterval>
 	CombineData<<T as Config<I>>::OracleKey, TimestampedValueOf<T, I>>
-	for DefaultCombineData<T, MinimumCount, ExpiresIn, MinimumTimestampInterval, MinimumValueInterval, I>
+	for DefaultCombineData<T, MinimumCount, ExpiresIn, MinimumTimestampInterval, MaximumValueInterval, I>
 where
 	T: Config<I>,
 	I: 'static,
 	MinimumCount: Get<u32>,
 	ExpiresIn: Get<MomentOf<T, I>>,
 	MinimumTimestampInterval: Get<MomentOf<T, I>>,
-	MinimumValueInterval: Get<<T as Config<I>>::OracleValue>,
+	MaximumValueInterval: Get<<T as Config<I>>::OracleValue>,
 {
 	fn combine_data(
 		_key: &<T as Config<I>>::OracleKey,
@@ -57,7 +57,7 @@ where
 			}
 		}
 
-		let minimum_value_interval = MinimumValueInterval::get();
+		let minimum_value_interval = MaximumValueInterval::get();
 		if let Some(ref prev) = prev_value {
 			let diff = minimum_value_interval.saturating_mul(prev.value);
 			value.value = if value.value < prev.value.saturating_sub(diff) {

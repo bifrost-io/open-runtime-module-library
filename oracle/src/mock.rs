@@ -48,7 +48,7 @@ impl Timestamp {
 parameter_types! {
 	pub const RootOperatorAccountId: AccountId = 4;
 	pub const MaxFeedValues: u32 = 5;
-	pub const MinimumValueInterval: FixedU128 = FixedU128::from_inner(10_000_000_000_000_000); // 1%
+	pub const MaximumValueInterval: FixedU128 = FixedU128::from_inner(10_000_000_000_000_000); // 1%
 }
 
 pub struct Members;
@@ -74,7 +74,7 @@ impl SortedMembers<AccountId> for AdminOrigin {
 impl Config for Test {
 	type RuntimeEvent = RuntimeEvent;
 	type OnNewData = ();
-	type CombineData = DefaultCombineData<Self, ConstU32<3>, ConstU32<600>, ConstU32<600>, MinimumValueInterval>;
+	type CombineData = DefaultCombineData<Self, ConstU32<3>, ConstU32<600>, ConstU32<600>, MaximumValueInterval>;
 	type Time = Timestamp;
 	type OracleKey = Key;
 	type OracleValue = Value;
