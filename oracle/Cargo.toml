@@ -8,6 +8,7 @@ authors = ["Laminar Developers <hello@laminar.one>"]
 edition = "2021"
 
 [dependencies]
+log = { workspace = true }
 parity-scale-codec = { workspace = true }
 scale-info = { workspace = true }
 serde = { workspace = true, optional = true }
@@ -32,6 +33,7 @@ std = [
 	"frame-benchmarking?/std",
 	"frame-support/std",
 	"frame-system/std",
+	"log/std",
 	"orml-traits/std",
 	"orml-utilities/std",
 	"parity-scale-codec/std",
