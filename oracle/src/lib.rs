@@ -141,10 +141,6 @@ pub mod module {
 			sender: T::AccountId,
 			values: Vec<(T::OracleKey, T::OracleValue)>,
 		},
-		FeedTimestampReachingLimit {
-			values: Vec<TimestampedValueOf<T, I>>,
-			prev: TimestampedValueOf<T, I>,
-		},
 		FeedValueReachingLimit {
 			value: TimestampedValueOf<T, I>,
 			prev: TimestampedValueOf<T, I>,

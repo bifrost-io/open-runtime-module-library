@@ -7,7 +7,7 @@ use sp_std::{marker, prelude::*};
 
 /// Sort by value and returns median timestamped value.
 /// Returns prev_value if not enough valid values.
-pub struct DefaultCombineData<T, MinimumCount, ExpiresIn, MinimumTimestampInterval, MaximumValueInterval, I = ()>(
+pub struct DefaultCombineData<T, MinimumCount, ExpiresIn, MinimumTimestampInterval, MaximumValueInterval, MinimumValueInterval, I = ()>(
 	marker::PhantomData<(
 		T,
 		I,
@@ -15,12 +15,13 @@ pub struct DefaultCombineData<T, MinimumCount, ExpiresIn, MinimumTimestampInterv
 		ExpiresIn,
 		MinimumTimestampInterval,
 		MaximumValueInterval,
+		MinimumValueInterval,
 	)>,
 );
 
-impl<T, I, MinimumCount, ExpiresIn, MinimumTimestampInterval, MaximumValueInterval>
+impl<T, I, MinimumCount, ExpiresIn, MinimumTimestampInterval, MaximumValueInterval, MinimumValueInterval>
 	CombineData<<T as Config<I>>::OracleKey, TimestampedValueOf<T, I>>
-	for DefaultCombineData<T, MinimumCount, ExpiresIn, MinimumTimestampInterval, MaximumValueInterval, I>
+	for DefaultCombineData<T, MinimumCount, ExpiresIn, MinimumTimestampInterval, MaximumValueInterval, MinimumValueInterval, I>
 where
 	T: Config<I>,
 	I: 'static,
@@ -28,6 +29,7 @@ where
 	ExpiresIn: Get<MomentOf<T, I>>,
 	MinimumTimestampInterval: Get<MomentOf<T, I>>,
 	MaximumValueInterval: Get<<T as Config<I>>::OracleValue>,
+	MinimumValueInterval: Get<<T as Config<I>>::OracleValue>,
 {
 	fn combine_data(
 		_key: &<T as Config<I>>::OracleKey,
@@ -52,25 +54,51 @@ where
 		let minimum_timestamp_interval = MinimumTimestampInterval::get();
 		if let Some(ref prev) = prev_value {
 			if prev.timestamp.saturating_add(minimum_timestamp_interval) > now {
-				Pallet::<T, I>::deposit_event(Event::FeedTimestampReachingLimit { values, prev: *prev });
+				log::trace!(
+					target: "oracle",
+					"Feed timestamp reaching limit: prev: {:?}, now: {:?}, interval: {:?}",
+					prev.timestamp,
+					now,
+					minimum_timestamp_interval
+				);
 				return prev_value;
 			}
 		}
 
-		let minimum_value_interval = MaximumValueInterval::get();
+		let minimum_value_interval = MinimumValueInterval::get();
+		let maximum_value_interval = MaximumValueInterval::get();
 		if let Some(ref prev) = prev_value {
 			let diff = minimum_value_interval.saturating_mul(prev.value);
+			let max_diff = maximum_value_interval.saturating_mul(prev.value);
 			value.value = if value.value < prev.value.saturating_sub(diff) {
-				Pallet::<T, I>::deposit_event(Event::FeedValueReachingLimit {
-					value: *value,
-					prev: *prev,
-				});
+				log::trace!(
+					target: "oracle",
+					"Feed value reaching limit: prev: {:?}, value: {:?}, diff: {:?}",
+					value.value,
+					prev.value,
+					diff
+				);
+				if value.value < prev.value.saturating_sub(max_diff) {
+					Pallet::<T, I>::deposit_event(Event::FeedValueReachingLimit {
+						value: *value,
+						prev: *prev,
+					});
+				}
 				prev.value.saturating_sub(diff)
 			} else if value.value > prev.value.saturating_add(diff) {
-				Pallet::<T, I>::deposit_event(Event::FeedValueReachingLimit {
-					value: *value,
-					prev: *prev,
-				});
+				log::trace!(
+					target: "oracle",
+					"Feed value reaching limit: prev: {:?}, value: {:?}, diff: {:?}",
+					value.value,
+					prev.value,
+					diff
+				);
+				if value.value > prev.value.saturating_add(max_diff) {
+					Pallet::<T, I>::deposit_event(Event::FeedValueReachingLimit {
+						value: *value,
+						prev: *prev,
+					});
+				}
 				prev.value.saturating_add(diff)
 			} else {
 				value.value
