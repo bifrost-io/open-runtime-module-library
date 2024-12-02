@@ -1,7 +1,6 @@
 // wrapping these imbalances in a private module is necessary to ensure absolute
 // privacy of the inner member.
 use crate::{Config, TotalIssuance};
-use frame_support::traits::tokens::imbalance::TryMerge;
 use frame_support::traits::{Get, Imbalance, SameOrOther, TryDrop};
 use sp_runtime::traits::{Saturating, Zero};
 use sp_std::{marker, mem, result};
@@ -28,15 +27,6 @@ impl<T: Config, GetCurrencyId: Get<T::CurrencyId>> Default for PositiveImbalance
 	}
 }
 
-impl<T: Config, GetCurrencyId: Get<T::CurrencyId>> TryMerge for PositiveImbalance<T, GetCurrencyId> {
-	fn try_merge(mut self, other: Self) -> Result<Self, (Self, Self)> {
-		self.0 = self.0.saturating_add(other.0);
-		mem::forget(other);
-
-		Ok(self)
-	}
-}
-
 /// Opaque, move-only struct with private fields that serves as a token
 /// denoting that funds have been destroyed without any equal and opposite
 /// accounting.
@@ -56,15 +46,6 @@ impl<T: Config, GetCurrencyId: Get<T::CurrencyId>> NegativeImbalance<T, GetCurre
 impl<T: Config, GetCurrencyId: Get<T::CurrencyId>> Default for NegativeImbalance<T, GetCurrencyId> {
 	fn default() -> Self {
 		Self::zero()
-	}
-}
-
-impl<T: Config, GetCurrencyId: Get<T::CurrencyId>> TryMerge for NegativeImbalance<T, GetCurrencyId> {
-	fn try_merge(mut self, other: Self) -> Result<Self, (Self, Self)> {
-		self.0 = self.0.saturating_add(other.0);
-		mem::forget(other);
-
-		Ok(self)
 	}
 }
 
