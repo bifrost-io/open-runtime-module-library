@@ -36,7 +36,7 @@ jobs:
     - name: Update
       run: |
         cargo update
-        cargo update -p frame-support-procedural --precise 30.0.2
+        cargo update -p xcm-procedural --precise 10.1.0
     - name: Run clippy
       run: cargo clippy -- -D warnings
     - name: Check for Wasm
