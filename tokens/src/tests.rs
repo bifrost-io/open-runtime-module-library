@@ -3,6 +3,7 @@
 #![cfg(test)]
 
 use super::*;
+use frame_support::traits::fungibles::approvals::Inspect;
 use frame_support::{assert_noop, assert_ok};
 use frame_system::RawOrigin;
 use mock::*;
@@ -1267,5 +1268,84 @@ fn post_transfer_can_use_new_balance() {
 				initial_balance + 100,
 				ExistenceRequirement::AllowDeath
 			));
+		});
+}
+
+#[test]
+fn approval_lifecycle_works() {
+	ExtBuilder::default()
+		.balances(vec![(ALICE, DOT, 100)])
+		.build()
+		.execute_with(|| {
+			assert_ok!(Tokens::approve(Some(ALICE).into(), DOT, BOB, 50));
+			assert_eq!(Approvals::<Runtime>::get((DOT, ALICE, BOB)).unwrap(), 50);
+			assert_ok!(Tokens::approve(Some(ALICE).into(), DOT, BOB, 20));
+			assert_eq!(Approvals::<Runtime>::get((DOT, ALICE, BOB)).unwrap(), 20);
+
+			assert_ok!(Tokens::transfer_from(Some(BOB).into(), DOT, ALICE, CHARLIE, 10));
+			assert_eq!(Tokens::free_balance(DOT, &ALICE), 90);
+			assert_eq!(Tokens::free_balance(DOT, &BOB), 0);
+			assert_eq!(Tokens::free_balance(DOT, &CHARLIE), 10);
+			assert_eq!(Approvals::<Runtime>::get((DOT, ALICE, BOB)).unwrap(), 10);
+
+			assert_ok!(Tokens::approve(Some(ALICE).into(), DOT, BOB, 0));
+			assert_eq!(Approvals::<Runtime>::get((DOT, ALICE, BOB)), None);
+
+			assert_ok!(Tokens::approve(Some(ALICE).into(), DOT, BOB, 0));
+			assert_eq!(Approvals::<Runtime>::get((DOT, ALICE, BOB)), None);
+
+			assert_noop!(
+				Tokens::transfer_from(Some(BOB).into(), DOT, ALICE, CHARLIE, 10),
+				Error::<Runtime>::Unapproved
+			);
+		});
+}
+
+#[test]
+fn transfer_from_all_funds() {
+	ExtBuilder::default()
+		.balances(vec![(ALICE, DOT, 100)])
+		.build()
+		.execute_with(|| {
+			assert_ok!(Tokens::approve(Some(ALICE).into(), DOT, BOB, 50));
+			assert_eq!(Approvals::<Runtime>::get((DOT, ALICE, BOB)).unwrap(), 50);
+			assert_eq!(Tokens::allowance(DOT, &ALICE, &BOB), 50);
+
+			// transfer the full amount, which should trigger auto-cleanup
+			assert_ok!(Tokens::transfer_from(Some(BOB).into(), DOT, ALICE, BOB, 50));
+			assert_eq!(Approvals::<Runtime>::get((DOT, ALICE, BOB)), None);
+
+			assert_eq!(Tokens::free_balance(DOT, &ALICE), 50);
+			assert_eq!(Tokens::free_balance(DOT, &BOB), 50);
+		});
+}
+
+#[test]
+fn cannot_transfer_more_than_approved() {
+	ExtBuilder::default()
+		.balances(vec![(ALICE, DOT, 100)])
+		.build()
+		.execute_with(|| {
+			assert_ok!(Tokens::approve(Some(ALICE).into(), DOT, BOB, 50));
+			assert_eq!(Approvals::<Runtime>::get((DOT, ALICE, BOB)).unwrap(), 50);
+			assert_noop!(
+				Tokens::transfer_from(Some(BOB).into(), DOT, ALICE, BOB, 51),
+				Error::<Runtime>::Unapproved
+			);
+		});
+}
+
+#[test]
+fn cannot_transfer_more_than_exists() {
+	ExtBuilder::default()
+		.balances(vec![(ALICE, DOT, 100)])
+		.build()
+		.execute_with(|| {
+			assert_ok!(Tokens::approve(Some(ALICE).into(), DOT, BOB, 101));
+			assert_eq!(Approvals::<Runtime>::get((DOT, ALICE, BOB)).unwrap(), 101);
+			assert_noop!(
+				Tokens::transfer_from(Some(BOB).into(), DOT, ALICE, BOB, 101),
+				Error::<Runtime>::BalanceTooLow
+			);
 		});
 }
