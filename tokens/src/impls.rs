@@ -5,7 +5,9 @@ use frame_support::traits::{
 	Contains, Get,
 };
 use sp_arithmetic::{traits::Bounded, ArithmeticError};
+use sp_runtime::traits::Zero;
 use sp_runtime::DispatchError;
+use sp_runtime::DispatchResult;
 
 pub struct Combiner<AccountId, TestKey, A, B>(sp_std::marker::PhantomData<(AccountId, TestKey, A, B)>);
 
@@ -348,5 +350,36 @@ where
 
 	fn set_total_issuance(amount: Self::Balance) {
 		T::set_total_issuance(GetCurrencyId::get(), amount)
+	}
+}
+
+impl<T: crate::Config> fungibles::approvals::Inspect<T::AccountId> for crate::Pallet<T> {
+	// Check the amount approved to be spent by an owner to a delegate
+	fn allowance(asset: T::CurrencyId, owner: &T::AccountId, delegate: &T::AccountId) -> T::Balance {
+		crate::Approvals::<T>::get((asset, &owner, &delegate))
+			.map(|x| x)
+			.unwrap_or_else(Zero::zero)
+	}
+}
+
+impl<T: crate::Config> fungibles::approvals::Mutate<T::AccountId> for crate::Pallet<T> {
+	// Approve spending tokens from a given account
+	fn approve(
+		asset: T::CurrencyId,
+		owner: &T::AccountId,
+		delegate: &T::AccountId,
+		amount: T::Balance,
+	) -> DispatchResult {
+		Self::do_approve(asset, owner, delegate, amount)
+	}
+
+	fn transfer_from(
+		asset: T::CurrencyId,
+		owner: &T::AccountId,
+		delegate: &T::AccountId,
+		dest: &T::AccountId,
+		amount: T::Balance,
+	) -> DispatchResult {
+		Self::do_transfer_from(asset, owner, delegate, dest, amount)
 	}
 }

@@ -255,6 +255,7 @@ pub mod module {
 		DeadAccount,
 		// Number of named reserves exceed `T::MaxReserves`
 		TooManyReserves,
+		Unapproved,
 	}
 
 	#[pallet::event]
@@ -365,6 +366,23 @@ pub mod module {
 			currency_id: T::CurrencyId,
 			amount: T::Balance,
 		},
+		/// (Additional) funds have been approved for transfer to a destination
+		/// account.
+		ApprovedTransfer {
+			currency_id: T::CurrencyId,
+			source: T::AccountId,
+			delegate: T::AccountId,
+			amount: T::Balance,
+		},
+		/// An `amount` was transferred in its entirety from `owner` to
+		/// `destination` by the approved `delegate`.
+		TransferredApproved {
+			currency_id: T::CurrencyId,
+			owner: T::AccountId,
+			delegate: T::AccountId,
+			destination: T::AccountId,
+			amount: T::Balance,
+		},
 	}
 
 	/// The total issuance of a token type.
@@ -415,6 +433,22 @@ pub mod module {
 		T::CurrencyId,
 		BoundedVec<ReserveData<T::ReserveIdentifier, T::Balance>, T::MaxReserves>,
 		ValueQuery,
+	>;
+
+	#[pallet::storage]
+	/// Approved balance transfers. First balance is the amount approved for
+	/// transfer. Second is the amount of `T::Currency` reserved for storing
+	/// this. First key is the asset ID, second key is the owner and third key
+	/// is the delegate.
+	pub(super) type Approvals<T: Config> = StorageNMap<
+		_,
+		(
+			NMapKey<Blake2_128Concat, T::CurrencyId>,
+			NMapKey<Blake2_128Concat, T::AccountId>, // owner
+			NMapKey<Blake2_128Concat, T::AccountId>, // delegate
+		),
+		T::Balance,
+		OptionQuery,
 	>;
 
 	#[pallet::genesis_config]
@@ -649,6 +683,74 @@ pub mod module {
 			})?;
 
 			Ok(())
+		}
+
+		/// Approve an amount of asset for transfer by a delegated third-party
+		/// account.
+		///
+		/// Origin must be Signed.
+		///
+		/// Ensures that `ApprovalDeposit` worth of `Currency` is reserved from
+		/// signing account for the purpose of holding the approval. If some
+		/// non-zero amount of assets is already approved from signing account
+		/// to `delegate`, then it is topped up or unreserved to
+		/// meet the right value.
+		///
+		/// NOTE: The signing account does not need to own `amount` of assets at
+		/// the point of making this call.
+		///
+		/// - `id`: The identifier of the asset.
+		/// - `delegate`: The account to delegate permission to transfer asset.
+		/// - `amount`: The amount of asset that may be transferred by
+		///   `delegate`. If there is
+		/// already an approval in place, then this acts additively.
+		///
+		/// Emits `ApprovedTransfer` on success.
+		///
+		/// Weight: `O(1)`
+		#[pallet::call_index(5)]
+		#[pallet::weight(T::WeightInfo::approve())]
+		pub fn approve(
+			origin: OriginFor<T>,
+			currency_id: T::CurrencyId,
+			delegate: T::AccountId,
+			#[pallet::compact] amount: T::Balance,
+		) -> DispatchResult {
+			let owner = ensure_signed(origin)?;
+			Self::do_approve(currency_id, &owner, &delegate, amount)
+		}
+
+		/// Transfer some asset balance from a previously delegated account to
+		/// some third-party account.
+		///
+		/// Origin must be Signed and there must be an approval in place by the
+		/// `owner` to the signer.
+		///
+		/// If the entire amount approved for transfer is transferred, then any
+		/// deposit previously reserved by `approve` is unreserved.
+		///
+		/// - `id`: The identifier of the asset.
+		/// - `owner`: The account which previously approved for a transfer of
+		///   at least `amount` and
+		/// from which the asset balance will be withdrawn.
+		/// - `destination`: The account to which the asset balance of `amount`
+		///   will be transferred.
+		/// - `amount`: The amount of assets to transfer.
+		///
+		/// Emits `TransferredApproved` on success.
+		///
+		/// Weight: `O(1)`
+		#[pallet::call_index(6)]
+		#[pallet::weight(T::WeightInfo::transfer_from())]
+		pub fn transfer_from(
+			origin: OriginFor<T>,
+			currency_id: T::CurrencyId,
+			owner: T::AccountId,
+			destination: T::AccountId,
+			#[pallet::compact] amount: T::Balance,
+		) -> DispatchResult {
+			let delegate = ensure_signed(origin)?;
+			Self::do_transfer_from(currency_id, &owner, &delegate, &destination, amount)
 		}
 	}
 }
@@ -1129,6 +1231,62 @@ impl<T: Config> Pallet<T> {
 			amount,
 		});
 		Ok(amount)
+	}
+
+	/// Creates an approval from `owner` to spend `amount` of asset `id` tokens
+	/// by 'delegate' while reserving `T::ApprovalDeposit` from owner
+	///
+	/// If an approval already exists, the new amount is added to such existing
+	/// approval
+	pub(crate) fn do_approve(
+		id: T::CurrencyId,
+		owner: &T::AccountId,
+		delegate: &T::AccountId,
+		amount: T::Balance,
+	) -> DispatchResult {
+		if amount == Default::default() {
+			Approvals::<T>::remove((id.clone(), &owner, &delegate));
+		} else {
+			Approvals::<T>::set((id.clone(), &owner, &delegate), Some(amount));
+		}
+		Self::deposit_event(Event::ApprovedTransfer {
+			currency_id: id,
+			source: owner.clone(),
+			delegate: delegate.clone(),
+			amount,
+		});
+
+		Ok(())
+	}
+
+	/// Reduces the asset `id` balance of `owner` by some `amount` and increases
+	/// the balance of `dest` by (similar) amount, checking that 'delegate' has
+	/// an existing approval from `owner` to spend`amount`.
+	///
+	/// Will fail if `amount` is greater than the approval from `owner` to
+	/// 'delegate' Will unreserve the deposit from `owner` if the entire
+	/// approved `amount` is spent by 'delegate'
+	pub(crate) fn do_transfer_from(
+		id: T::CurrencyId,
+		owner: &T::AccountId,
+		delegate: &T::AccountId,
+		destination: &T::AccountId,
+		amount: T::Balance,
+	) -> DispatchResult {
+		Approvals::<T>::try_mutate_exists((id.clone(), &owner, delegate), |maybe_approved| -> DispatchResult {
+			let approved = maybe_approved.take().ok_or(Error::<T>::Unapproved)?;
+			let remaining = approved.checked_sub(&amount).ok_or(Error::<T>::Unapproved)?;
+
+			Self::do_transfer(id, &owner, &destination, amount, ExistenceRequirement::AllowDeath)?;
+
+			if remaining.is_zero() {
+				Approvals::<T>::remove((id.clone(), &owner, &delegate));
+			} else {
+				*maybe_approved = Some(remaining);
+			}
+			Ok(())
+		})?;
+		Ok(())
 	}
 }
 
