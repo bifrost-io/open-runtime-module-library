@@ -1286,6 +1286,7 @@ fn approval_lifecycle_works() {
 			assert_eq!(Tokens::free_balance(DOT, &ALICE), 90);
 			assert_eq!(Tokens::free_balance(DOT, &BOB), 0);
 			assert_eq!(Tokens::free_balance(DOT, &CHARLIE), 10);
+			assert_eq!(Approvals::<Runtime>::get((DOT, ALICE, BOB)).unwrap(), 10);
 
 			assert_ok!(Tokens::approve(Some(ALICE).into(), DOT, BOB, 0));
 			assert_eq!(Approvals::<Runtime>::get((DOT, ALICE, BOB)), None);
