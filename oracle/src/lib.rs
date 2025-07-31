@@ -77,7 +77,7 @@ pub mod module {
 	pub(crate) type MomentOf<T, I = ()> = <<T as Config<I>>::Time as Time>::Moment;
 	pub(crate) type TimestampedValueOf<T, I = ()> = TimestampedValue<<T as Config<I>>::OracleValue, MomentOf<T, I>>;
 
-	#[derive(Encode, Decode, RuntimeDebug, Eq, PartialEq, Clone, Copy, Ord, PartialOrd, TypeInfo, MaxEncodedLen)]
+	#[derive(Encode, Decode, DecodeWithMemTracking, RuntimeDebug, Eq, PartialEq, Clone, Copy, Ord, PartialOrd, TypeInfo, MaxEncodedLen)]
 	#[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
 	pub struct TimestampedValue<Value, Moment> {
 		pub value: Value,
