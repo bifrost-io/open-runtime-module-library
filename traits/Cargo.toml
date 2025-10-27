@@ -11,9 +11,9 @@ edition = "2021"
 scale-info = { workspace = true }
 serde = { workspace = true, optional = true }
 parity-scale-codec = { workspace = true }
-num-traits = { version = "0.2.14", default-features = false }
+num-traits = { version = "0.2.17", default-features = false }
 impl-trait-for-tuples = "0.2.2"
-paste = "1.0"
+paste = { version = "1.0.15", default-features = false }
 
 sp-runtime = { workspace = true, features = ["serde"] }
 sp-core = { workspace = true }
