@@ -1,4 +1,7 @@
-use super::{AllowTopLevelPaidExecution, Amount, Balance, CurrencyId, CurrencyIdConvert, ParachainXcmRouter};
+use super::{
+	AbsoluteReserveProvider, AllowTopLevelPaidExecution, Amount, Balance, CurrencyId, CurrencyIdConvert,
+	ParachainXcmRouter,
+};
 use crate as orml_xtokens;
 
 use frame_support::{
@@ -7,6 +10,7 @@ use frame_support::{
 };
 use frame_system::EnsureRoot;
 use pallet_xcm::XcmPassthrough;
+use parachains_common::xcm_config::ConcreteAssetFromSystem;
 use polkadot_parachain_primitives::primitives::Sibling;
 use sp_runtime::{
 	traits::{Convert, IdentityLookup},
@@ -14,15 +18,16 @@ use sp_runtime::{
 };
 use xcm::v5::{prelude::*, Weight};
 use xcm_builder::{
-	AccountId32Aliases, EnsureXcmOrigin, FixedWeightBounds, NativeAsset, ParentIsPreset, RelayChainAsNative,
+	AccountId32Aliases, EnsureXcmOrigin, FixedWeightBounds, ParentIsPreset, RelayChainAsNative,
 	SiblingParachainAsNative, SiblingParachainConvertsVia, SignedAccountId32AsNative, SignedToAccountId32,
 	SovereignSignedViaLocation, TakeWeightCredit,
 };
 use xcm_executor::{Config, XcmExecutor};
 
-use crate::mock::teleport_currency_adapter::MultiTeleportCurrencyAdapter;
-use crate::mock::AllTokensAreCreatedEqualToWeight;
-use orml_traits::{location::AbsoluteReserveProvider, parameter_type_with_key};
+use crate::mock::{
+	teleport_currency_adapter::MultiTeleportCurrencyAdapter, AllTokensAreCreatedEqualToWeight, KsmLocation,
+};
+use orml_traits::parameter_type_with_key;
 use orml_xcm_support::{DisabledParachainFee, IsNativeConcrete, MultiNativeAsset};
 
 pub type AccountId = AccountId32;
@@ -69,6 +74,8 @@ impl orml_tokens::Config for Runtime {
 	type MaxReserves = ConstU32<50>;
 	type ReserveIdentifier = [u8; 8];
 	type DustRemovalWhitelist = Everything;
+	#[cfg(feature = "runtime-benchmarks")]
+	type BenchmarkHelper = ();
 }
 
 parameter_types! {
@@ -120,7 +127,7 @@ impl Config for XcmConfig {
 	type AssetTransactor = LocalAssetTransactor;
 	type OriginConverter = XcmOriginToCallOrigin;
 	type IsReserve = MultiNativeAsset<AbsoluteReserveProvider>;
-	type IsTeleporter = NativeAsset;
+	type IsTeleporter = ConcreteAssetFromSystem<KsmLocation>;
 	type UniversalLocation = UniversalLocation;
 	type Barrier = Barrier;
 	type Weigher = FixedWeightBounds<UnitWeightCost, RuntimeCall, MaxInstructions>;

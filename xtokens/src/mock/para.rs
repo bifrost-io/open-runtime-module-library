@@ -1,6 +1,6 @@
 use super::{
-	AllowTopLevelPaidExecution, Amount, Balance, CurrencyId, CurrencyIdConvert, ParachainXcmRouter, RateLimiter,
-	CHARLIE,
+	AbsoluteReserveProvider, AllowTopLevelPaidExecution, Amount, Balance, CurrencyId, CurrencyIdConvert,
+	ParachainXcmRouter, RateLimiter, CHARLIE,
 };
 use crate as orml_xtokens;
 
@@ -10,6 +10,7 @@ use frame_support::{
 };
 use frame_system::EnsureRoot;
 use pallet_xcm::XcmPassthrough;
+use parachains_common::xcm_config::ConcreteAssetFromSystem;
 use parity_scale_codec::Encode;
 use polkadot_parachain_primitives::primitives::Sibling;
 use sp_runtime::{
@@ -19,15 +20,15 @@ use sp_runtime::{
 use sp_std::{cell::RefCell, marker::PhantomData};
 use xcm::v5::{prelude::*, Weight};
 use xcm_builder::{
-	AccountId32Aliases, EnsureXcmOrigin, FixedWeightBounds, NativeAsset, ParentIsPreset, RelayChainAsNative,
+	AccountId32Aliases, EnsureXcmOrigin, FixedWeightBounds, ParentIsPreset, RelayChainAsNative,
 	SiblingParachainAsNative, SiblingParachainConvertsVia, SignedAccountId32AsNative, SignedToAccountId32,
 	SovereignSignedViaLocation, TakeWeightCredit,
 };
 use xcm_executor::{Config, XcmExecutor};
 
-use crate::mock::AllTokensAreCreatedEqualToWeight;
+use crate::mock::{AllTokensAreCreatedEqualToWeight, KsmLocation};
 use orml_traits::{
-	location::{AbsoluteReserveProvider, Reserve},
+	location::{Reserve, ASSET_HUB_ID},
 	parameter_type_with_key, RateLimiterError,
 };
 use orml_xcm_support::{IsNativeConcrete, MultiCurrencyAdapter};
@@ -76,6 +77,8 @@ impl orml_tokens::Config for Runtime {
 	type MaxReserves = ConstU32<50>;
 	type ReserveIdentifier = [u8; 8];
 	type DustRemovalWhitelist = Everything;
+	#[cfg(feature = "runtime-benchmarks")]
+	type BenchmarkHelper = ();
 }
 
 parameter_types! {
@@ -146,7 +149,7 @@ impl Config for XcmConfig {
 	type AssetTransactor = LocalAssetTransactor;
 	type OriginConverter = XcmOriginToCallOrigin;
 	type IsReserve = MultiNativeAsset<AbsoluteReserveProvider>;
-	type IsTeleporter = NativeAsset;
+	type IsTeleporter = ConcreteAssetFromSystem<KsmLocation>;
 	type UniversalLocation = UniversalLocation;
 	type Barrier = Barrier;
 	type Weigher = FixedWeightBounds<UnitWeightCost, RuntimeCall, MaxInstructions>;
@@ -235,6 +238,7 @@ impl Contains<Location> for ParentOrParachains {
 				| (1, [Parachain(3), Junction::AccountId32 { .. }])
 				| (1, [Parachain(4), Junction::AccountId32 { .. }])
 				| (1, [Parachain(100), Junction::AccountId32 { .. }])
+				| (1, [Parachain(ASSET_HUB_ID), Junction::AccountId32 { .. }])
 		)
 	}
 }
@@ -244,6 +248,7 @@ parameter_type_with_key! {
 		#[allow(clippy::match_ref_pats)] // false positive
 		match (location.parents, location.first_interior()) {
 			(1, Some(Parachain(3))) => Some(50),
+			(1, Some(Parachain(ASSET_HUB_ID))) => Some(50),
 			_ => None,
 		}
 	};

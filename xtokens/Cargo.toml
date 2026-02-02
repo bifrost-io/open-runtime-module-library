@@ -3,7 +3,7 @@ name = "orml-xtokens"
 description = "Cross-chain token transfer."
 repository = "https://github.com/open-web3-stack/open-runtime-module-library/tree/master/xtokens"
 license = "Apache-2.0"
-version = "1.4.0"
+version = "1.5.0"
 authors = ["Acala Developers"]
 edition = "2021"
 
@@ -21,13 +21,14 @@ sp-runtime = { workspace = true }
 sp-std = { workspace = true }
 
 # polkadot
+parachains-common = { workspace = true, optional = true }
 pallet-xcm = { workspace = true }
 xcm = { workspace = true }
 xcm-executor = { workspace = true }
 
 # orml
-orml-traits = { path = "../traits", version = "1.4.0", default-features = false}
-orml-xcm-support = { path = "../xcm-support", version = "1.4.0", default-features = false }
+orml-traits = { path = "../traits", version = "1.5.0", default-features = false}
+orml-xcm-support = { path = "../xcm-support", version = "1.5.0", default-features = false }
 
 [dev-dependencies]
 # substrate
@@ -61,6 +62,7 @@ std = [
 	"orml-traits/std",
 	"orml-xcm-support/std",
 	"pallet-xcm/std",
+	"parachains-common/std",
 	"parity-scale-codec/std",
 	"scale-info/std",
 	"serde",
@@ -73,7 +75,9 @@ std = [
 runtime-benchmarks = [
 	"frame-support/runtime-benchmarks",
 	"frame-system/runtime-benchmarks",
+	"orml-tokens/runtime-benchmarks",
 	"pallet-xcm/runtime-benchmarks",
+	"parachains-common/runtime-benchmarks",
 	"sp-runtime/runtime-benchmarks",
 	"xcm-executor/runtime-benchmarks",
 	"xcm/runtime-benchmarks",
@@ -82,5 +86,6 @@ try-runtime = [
 	"frame-support/try-runtime",
 	"frame-system/try-runtime",
 	"pallet-xcm/try-runtime",
+	"parachains-common/try-runtime",
 	"sp-runtime/try-runtime",
 ]

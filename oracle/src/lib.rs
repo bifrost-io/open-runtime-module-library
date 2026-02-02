@@ -33,7 +33,7 @@ use frame_support::{
 	weights::Weight,
 	Parameter,
 };
-use frame_system::{ensure_signed, pallet_prelude::*};
+use frame_system::{ensure_root, ensure_signed, pallet_prelude::*};
 pub use orml_traits::{CombineData, DataFeeder, DataProvider, DataProviderExtended, OnNewData};
 use orml_utilities::OrderedSet;
 use scale_info::TypeInfo;
@@ -50,26 +50,10 @@ mod mock;
 mod tests;
 mod weights;
 
+#[cfg(feature = "runtime-benchmarks")]
+pub use benchmarking::BenchmarkHelper;
 pub use module::*;
 pub use weights::WeightInfo;
-
-#[cfg(feature = "runtime-benchmarks")]
-/// Helper trait for benchmarking.
-pub trait BenchmarkHelper<OracleKey, OracleValue, L: Get<u32>> {
-	/// Returns a list of `(oracle_key, oracle_value)` pairs to be used for
-	/// benchmarking.
-	///
-	/// NOTE: User should ensure to at least submit two values, otherwise the
-	/// benchmark linear analysis might fail.
-	fn get_currency_id_value_pairs() -> BoundedVec<(OracleKey, OracleValue), L>;
-}
-
-#[cfg(feature = "runtime-benchmarks")]
-impl<OracleKey, OracleValue, L: Get<u32>> BenchmarkHelper<OracleKey, OracleValue, L> for () {
-	fn get_currency_id_value_pairs() -> BoundedVec<(OracleKey, OracleValue), L> {
-		BoundedVec::default()
-	}
-}
 
 #[frame_support::pallet]
 pub mod module {
@@ -114,7 +98,7 @@ pub mod module {
 		type OracleKey: Parameter + Member + MaxEncodedLen;
 
 		/// The data value type
-		type OracleValue: sp_runtime::FixedPointNumber + Parameter + Member + Ord + MaxEncodedLen;
+		type OracleValue: Parameter + Member + Ord + MaxEncodedLen;
 
 		/// The root operator account id, record all sudo feeds on this account.
 		#[pallet::constant]
@@ -134,7 +118,8 @@ pub mod module {
 		#[pallet::constant]
 		type MaxFeedValues: Get<u32>;
 
-		type ControlOrigin: EnsureOrigin<Self::RuntimeOrigin>;
+		#[cfg(feature = "runtime-benchmarks")]
+		type BenchmarkHelper: BenchmarkHelper<Self::OracleKey, Self::OracleValue, Self::MaxFeedValues>;
 	}
 
 	#[pallet::error]
@@ -152,10 +137,6 @@ pub mod module {
 		NewFeedData {
 			sender: T::AccountId,
 			values: Vec<(T::OracleKey, T::OracleValue)>,
-		},
-		FeedValueReachingLimit {
-			value: TimestampedValueOf<T, I>,
-			prev: TimestampedValueOf<T, I>,
 		},
 	}
 
@@ -205,7 +186,7 @@ pub mod module {
 		) -> DispatchResultWithPostInfo {
 			let feeder = ensure_signed(origin.clone())
 				.map(Some)
-				.or_else(|_| T::ControlOrigin::ensure_origin_or_root(origin).map(|_| None))?;
+				.or_else(|_| ensure_root(origin).map(|_| None))?;
 
 			let who = Self::ensure_account(feeder)?;
 
@@ -263,12 +244,6 @@ impl<T: Config<I>, I: 'static> Pallet<T, I> {
 				timestamp: now,
 			};
 			RawValues::<T, I>::insert(&who, key, timestamped);
-			if who == T::RootOperatorAccountId::get() {
-				// Root operator feeds, no need to combine.
-				<Values<T, I>>::insert(key, timestamped);
-				T::OnNewData::on_new_data(&who, key, value);
-				continue;
-			}
 
 			// Update `Values` storage if `combined` yielded result.
 			if let Some(combined) = Self::combined(key) {

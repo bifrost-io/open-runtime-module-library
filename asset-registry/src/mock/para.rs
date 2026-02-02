@@ -10,11 +10,9 @@ use frame_support::{
 	PalletId,
 };
 use frame_system::{EnsureRoot, EnsureSignedBy};
-use orml_traits::{
-	location::{AbsoluteReserveProvider, RelativeReserveProvider},
-	parameter_type_with_key, FixedConversionRateProvider, MultiCurrency,
-};
+use orml_traits::{parameter_type_with_key, FixedConversionRateProvider, MultiCurrency};
 use orml_xcm_support::{IsNativeConcrete, MultiCurrencyAdapter, MultiNativeAsset};
+use orml_xtokens::{AbsoluteReserveProvider, RelativeReserveProvider};
 use pallet_xcm::XcmPassthrough;
 use parity_scale_codec::{Decode, DecodeWithMemTracking, Encode, MaxEncodedLen};
 use polkadot_parachain_primitives::primitives::Sibling;
@@ -79,6 +77,8 @@ impl orml_tokens::Config for Runtime {
 	type MaxReserves = ();
 	type MaxLocks = ConstU32<50>;
 	type DustRemovalWhitelist = Nothing;
+	#[cfg(feature = "runtime-benchmarks")]
+	type BenchmarkHelper = ();
 }
 
 #[derive(scale_info::TypeInfo, Encode, Decode, Clone, Eq, PartialEq, Debug, MaxEncodedLen, DecodeWithMemTracking)]

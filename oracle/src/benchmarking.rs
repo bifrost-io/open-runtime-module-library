@@ -1,10 +1,24 @@
-use super::*;
-use crate::Pallet as Oracle;
+pub use crate::*;
 
 use frame_benchmarking::v2::*;
-
 use frame_support::assert_ok;
 use frame_system::{Pallet as System, RawOrigin};
+
+/// Helper trait for benchmarking.
+pub trait BenchmarkHelper<OracleKey, OracleValue, L: Get<u32>> {
+	/// Returns a list of `(oracle_key, oracle_value)` pairs to be used for
+	/// benchmarking.
+	///
+	/// NOTE: User should ensure to at least submit two values, otherwise the
+	/// benchmark linear analysis might fail.
+	fn get_currency_id_value_pairs() -> BoundedVec<(OracleKey, OracleValue), L>;
+}
+
+impl<OracleKey, OracleValue, L: Get<u32>> BenchmarkHelper<OracleKey, OracleValue, L> for () {
+	fn get_currency_id_value_pairs() -> BoundedVec<(OracleKey, OracleValue), L> {
+		BoundedVec::default()
+	}
+}
 
 #[instance_benchmarks]
 mod benchmarks {
@@ -36,18 +50,18 @@ mod benchmarks {
 		// Feed some values before running `on_finalize` hook
 		System::<T>::set_block_number(1u32.into());
 		let values = T::BenchmarkHelper::get_currency_id_value_pairs();
-		assert_ok!(Oracle::<T, I>::feed_values(RawOrigin::Signed(caller).into(), values));
+		assert_ok!(Pallet::<T, I>::feed_values(RawOrigin::Signed(caller).into(), values));
 
 		#[block]
 		{
-			Oracle::<T, I>::on_finalize(System::<T>::block_number());
+			Pallet::<T, I>::on_finalize(System::<T>::block_number());
 		}
 
 		assert!(!HasDispatched::<T, I>::exists());
 	}
 
 	impl_benchmark_test_suite! {
-		Oracle,
+		Pallet,
 		crate::mock::new_test_ext(),
 		crate::mock::Test,
 	}

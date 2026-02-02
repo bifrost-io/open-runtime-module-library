@@ -53,7 +53,7 @@ use xcm_executor::traits::WeightBounds;
 
 pub use module::*;
 use orml_traits::{
-	location::{Parse, Reserve},
+	location::{Reserve, ASSET_HUB_ID},
 	xcm_transfer::{Transferred, XtokensWeightInfo},
 	GetByKey, RateLimiter, XcmTransfer,
 };
@@ -394,6 +394,10 @@ pub mod module {
 
 			Self::do_transfer_assets(who, assets.clone(), fee.clone(), dest, dest_weight_limit).map(|_| ())
 		}
+
+		// #[pallet::call_index(6)]
+		// pub fn set_migration_phase(origin: OriginFor<T>, migration_phase:
+		// MigrationPhase) -> DispatchResult {}
 	}
 
 	impl<T: Config> Pallet<T> {
@@ -565,7 +569,7 @@ pub mod module {
 			if asset_len > 1 && fee_reserve != non_fee_reserve {
 				// Current only support `ToReserve` with relay-chain asset as fee. other case
 				// like `NonReserve` or `SelfReserve` with relay-chain fee is not support.
-				ensure!(non_fee_reserve == dest.chain_part(), Error::<T>::InvalidAsset);
+				ensure!(non_fee_reserve == chain_part(&dest), Error::<T>::InvalidAsset);
 
 				let reserve_location = non_fee_reserve.clone().ok_or(Error::<T>::AssetHasNoReserve)?;
 				let min_xcm_fee = T::MinXcmFee::get(&reserve_location).ok_or(Error::<T>::MinXcmFeeNotDefined)?;
@@ -590,7 +594,7 @@ pub mod module {
 
 				let mut override_recipient = T::SelfLocation::get();
 				if override_recipient == Location::here() {
-					let dest_chain_part = dest.chain_part().ok_or(Error::<T>::InvalidDest)?;
+					let dest_chain_part = chain_part(&dest).ok_or(Error::<T>::InvalidDest)?;
 					let ancestry = T::UniversalLocation::get();
 					let _ = override_recipient
 						.reanchor(&dest_chain_part, &ancestry)
@@ -600,7 +604,7 @@ pub mod module {
 				// First xcm sent to fee reserve chain and routed to dest chain.
 				// We can use `MinXcmFee` configuration to decide which target parachain use
 				// teleport. But as current there's only one case which is Parachain send back
-				// asset to Statemine/t, So we set `use_teleport` to always `true` in this case.
+				// asset to AssetHub, So we set `use_teleport` to always `true` in this case.
 				Self::execute_and_send_reserve_kind_xcm(
 					origin_location.clone(),
 					assets_to_fee_reserve,
@@ -684,10 +688,12 @@ pub mod module {
 			let mut hash = msg.using_encoded(sp_io::hashing::blake2_256);
 
 			let weight = T::Weigher::weight(&mut msg, Weight::MAX).map_err(|_| Error::<T>::UnweighableMessage)?;
-			T::XcmExecutor::prepare_and_execute(origin_location, msg, &mut hash, weight, weight)
+			T::XcmExecutor::prepare_and_execute(origin_location.clone(), msg.clone(), &mut hash, weight, weight)
 				.ensure_complete()
 				.map_err(|error| {
-					log::error!("Failed execute transfer message with {error:?}");
+					log::error!(
+						"Failed execute transfer message with {error:?}, origin: {origin_location:?}, msg: {msg:?}"
+					);
 					Error::<T>::XcmExecutionFailed
 				})?;
 
@@ -817,7 +823,7 @@ pub mod module {
 
 		/// Ensure has the `dest` has chain part and recipient part.
 		fn ensure_valid_dest(dest: &Location) -> Result<(Location, Location), DispatchError> {
-			if let (Some(dest), Some(recipient)) = (dest.chain_part(), dest.non_chain_part()) {
+			if let (Some(dest), Some(recipient)) = (chain_part(dest), non_chain_part(dest)) {
 				Ok((dest, recipient))
 			} else {
 				Err(Error::<T>::InvalidDest.into())
@@ -1064,5 +1070,62 @@ fn subtract_fee(asset: &Asset, amount: u128) -> Asset {
 	Asset {
 		fun: Fungible(final_amount),
 		id: asset.id.clone(),
+	}
+}
+
+fn is_chain_junction(junction: Option<&Junction>) -> bool {
+	matches!(junction, Some(Parachain(_)))
+}
+
+// Provide reserve in absolute path view
+pub struct AbsoluteReserveProvider;
+
+impl Reserve for AbsoluteReserveProvider {
+	fn reserve(asset: &Asset) -> Option<Location> {
+		let AssetId(location) = &asset.id;
+		chain_part(location)
+	}
+}
+
+// Provide reserve in relative path view
+// Self tokens are represeneted as Here
+pub struct RelativeReserveProvider;
+
+impl Reserve for RelativeReserveProvider {
+	fn reserve(asset: &Asset) -> Option<Location> {
+		let AssetId(location) = &asset.id;
+		if location.parents == 0 && !is_chain_junction(location.first_interior()) {
+			Some(Location::here())
+		} else {
+			chain_part(location)
+		}
+	}
+}
+
+/// Returns the "chain" location part. It could be parent, sibling
+/// parachain, or child parachain.
+pub fn chain_part(location: &Location) -> Option<Location> {
+	match (location.parents, location.first_interior()) {
+		// sibling parachain
+		(1, Some(Parachain(id))) => Some(Location::new(1, [Parachain(*id)])),
+		// parent -> assethub
+		(1, _) => Some(Location::new(1, [Parachain(ASSET_HUB_ID)])),
+		// children parachain
+		(0, Some(Parachain(id))) => Some(Location::new(0, [Parachain(*id)])),
+		_ => None,
+	}
+}
+
+/// Returns "non-chain" location part.
+pub fn non_chain_part(location: &Location) -> Option<Location> {
+	let mut junctions = location.interior().clone();
+	while is_chain_junction(junctions.first()) {
+		let _ = junctions.take_first();
+	}
+
+	if junctions != Here {
+		Some(Location::new(0, junctions))
+	} else {
+		None
 	}
 }
