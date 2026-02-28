@@ -4,7 +4,7 @@ pub use frame_support::{
 	traits::{BalanceStatus, DefensiveSaturating, LockIdentifier},
 	transactional,
 };
-use parity_scale_codec::{Codec, FullCodec, MaxEncodedLen};
+use parity_scale_codec::{Codec, FullCodec, MaxEncodedLen, DecodeWithMemTracking};
 use sp_runtime::{
 	traits::{AtLeast32BitUnsigned, MaybeSerializeDeserialize},
 	DispatchError, DispatchResult,
@@ -23,6 +23,7 @@ pub trait MultiCurrency<AccountId> {
 		+ PartialEq
 		+ Copy
 		+ MaybeSerializeDeserialize
+		+ DecodeWithMemTracking
 		+ Debug
 		+ scale_info::TypeInfo
 		+ MaxEncodedLen;
