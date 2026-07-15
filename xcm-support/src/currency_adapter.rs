@@ -1,10 +1,14 @@
-use frame_support::traits::{ExistenceRequirement, Get};
+use frame_support::traits::{
+	tokens::imbalance::{ImbalanceAccounting, UnsafeConstructorDestructor, UnsafeManualAccounting},
+	ExistenceRequirement, Get,
+};
 use parity_scale_codec::FullCodec;
 use sp_runtime::{
 	traits::{Convert, MaybeSerializeDeserialize, SaturatedConversion},
 	DispatchError,
 };
 use sp_std::{
+	boxed::Box,
 	cmp::{Eq, PartialEq},
 	fmt::Debug,
 	marker::PhantomData,
@@ -19,6 +23,39 @@ use xcm_executor::{
 };
 
 use crate::UnknownAsset as UnknownAssetT;
+
+/// Credit representation for currencies whose API does not expose a native
+/// imbalance type. The actual balance accounting is performed by
+/// `MultiCurrency` before this value is created or consumed.
+struct MultiCurrencyCredit(u128);
+
+impl UnsafeConstructorDestructor<u128> for MultiCurrencyCredit {
+	fn unsafe_clone(&self) -> Box<dyn ImbalanceAccounting<u128>> {
+		Box::new(Self(self.0))
+	}
+
+	fn forget_imbalance(&mut self) -> u128 {
+		sp_std::mem::take(&mut self.0)
+	}
+}
+
+impl UnsafeManualAccounting<u128> for MultiCurrencyCredit {
+	fn saturating_subsume(&mut self, mut other: Box<dyn ImbalanceAccounting<u128>>) {
+		self.0 = self.0.saturating_add(other.forget_imbalance());
+	}
+}
+
+impl ImbalanceAccounting<u128> for MultiCurrencyCredit {
+	fn amount(&self) -> u128 {
+		self.0
+	}
+
+	fn saturating_take(&mut self, amount: u128) -> Box<dyn ImbalanceAccounting<u128>> {
+		let taken = self.0.min(amount);
+		self.0 -= taken;
+		Box::new(Self(taken))
+	}
+}
 
 /// Asset transaction errors.
 enum Error {
@@ -145,18 +182,36 @@ impl<
 		DepositFailureHandler,
 	>
 {
-	fn deposit_asset(asset: &Asset, location: &Location, _context: Option<&XcmContext>) -> Result {
-		match (
+	fn deposit_asset(
+		mut assets: AssetsInHolding,
+		location: &Location,
+		_context: Option<&XcmContext>,
+	) -> result::Result<(), (AssetsInHolding, XcmError)> {
+		let Some(asset) = assets.assets_iter().next() else {
+			return Ok(());
+		};
+		let result = match (
 			AccountIdConvert::convert_location(location),
 			CurrencyIdConvert::convert(asset.clone()),
-			Match::matches_fungible(asset),
+			Match::matches_fungible(&asset),
 		) {
 			// known asset
 			(Some(who), Some(currency_id), Some(amount)) => MultiCurrency::deposit(currency_id, &who, amount)
 				.or_else(|err| DepositFailureHandler::on_deposit_currency_fail(err, currency_id, &who, amount)),
 			// unknown asset
-			_ => UnknownAsset::deposit(asset, location)
-				.or_else(|err| DepositFailureHandler::on_deposit_unknown_asset_fail(err, asset, location)),
+			_ => UnknownAsset::deposit(&asset, location)
+				.or_else(|err| DepositFailureHandler::on_deposit_unknown_asset_fail(err, &asset, location)),
+		};
+		match result {
+			Ok(()) => {
+				// `MultiCurrency::deposit` already performed the ledger accounting.
+				// Prevent the consumed holding credits from resolving a second time on drop.
+				for credit in assets.fungible.values_mut() {
+					credit.forget_imbalance();
+				}
+				Ok(())
+			},
+			Err(error) => Err((assets, error)),
 		}
 	}
 
@@ -177,15 +232,22 @@ impl<
 				.map_err(|e| XcmError::FailedToTransactAsset(e.into()))
 		})?;
 
-		Ok(asset.clone().into())
+		let amount = match asset.fun {
+			Fungible(amount) => amount,
+			NonFungible(_) => return Err(XcmError::from(Error::FailedToMatchFungible)),
+		};
+		Ok(AssetsInHolding::new_from_fungible_credit(
+			asset.id.clone(),
+			Box::new(MultiCurrencyCredit(amount)),
+		))
 	}
 
-	fn transfer_asset(
+	fn internal_transfer_asset(
 		asset: &Asset,
 		from: &Location,
 		to: &Location,
 		_context: &XcmContext,
-	) -> result::Result<AssetsInHolding, XcmError> {
+	) -> result::Result<Asset, XcmError> {
 		let from_account =
 			AccountIdConvert::convert_location(from).ok_or_else(|| XcmError::from(Error::AccountIdConversionFailed))?;
 		let to_account =
@@ -204,6 +266,6 @@ impl<
 		)
 		.map_err(|e| XcmError::FailedToTransactAsset(e.into()))?;
 
-		Ok(asset.clone().into())
+		Ok(asset.clone())
 	}
 }

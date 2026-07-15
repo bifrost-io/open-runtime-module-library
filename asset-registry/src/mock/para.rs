@@ -27,7 +27,7 @@ use xcm_builder::{
 	RelayChainAsNative, SiblingParachainAsNative, SiblingParachainConvertsVia, SignedAccountId32AsNative,
 	SignedToAccountId32, SovereignSignedViaLocation, TakeRevenue, TakeWeightCredit,
 };
-use xcm_executor::{Config, XcmExecutor};
+use xcm_executor::{AssetsInHolding, Config, XcmExecutor};
 
 pub type AccountId = AccountId32;
 
@@ -173,12 +173,11 @@ parameter_types! {
 
 pub struct ToTreasury;
 impl TakeRevenue for ToTreasury {
-	fn take_revenue(revenue: Asset) {
-		if let Asset {
-			id: AssetId(location),
-			fun: Fungible(amount),
-		} = revenue
-		{
+	fn take_revenue(revenue: AssetsInHolding) {
+		for asset in revenue.into_assets_iter() {
+			let Asset { id: AssetId(location), fun: Fungible(amount) } = asset else {
+				continue;
+			};
 			if let Some(currency_id) = CurrencyIdConvert::convert(location) {
 				let _ = Tokens::deposit(currency_id, &TreasuryAccount::get(), amount);
 			}
@@ -220,7 +219,6 @@ impl Config for XcmConfig {
 	type Trader = AssetRegistryWeightTrader;
 	type ResponseHandler = ();
 	type AssetTrap = PolkadotXcm;
-	type AssetClaims = PolkadotXcm;
 	type SubscriptionService = PolkadotXcm;
 	type AssetLocker = PolkadotXcm;
 	type AssetExchanger = ();

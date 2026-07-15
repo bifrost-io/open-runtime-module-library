@@ -71,6 +71,7 @@ pub struct BoughtWeight {
 	weight: Weight,
 	asset_location: Location,
 	amount: u128,
+	fees: AssetsInHolding,
 }
 
 /// A WeightTrader implementation that tries to buy weight using a single
@@ -98,13 +99,15 @@ impl<W: WeightToFeeConverter, R: TakeRevenue> WeightTrader for AssetRegistryTrad
 		weight: XcmWeight,
 		payment: AssetsInHolding,
 		_context: &XcmContext,
-	) -> Result<AssetsInHolding, XcmError> {
+	) -> Result<AssetsInHolding, (AssetsInHolding, XcmError)> {
 		log::trace!(
 			target: "xcm::weight",
 			"AssetRegistryTrader::buy_weight weight: {weight:?}, payment: {payment:?}"
 		);
 
-		for (asset, _) in payment.fungible.iter() {
+		let mut payment = payment;
+		let asset_ids: Vec<_> = payment.fungible.keys().cloned().collect();
+		for asset in asset_ids {
 			let AssetId(ref location) = asset;
 			if matches!(self.bought_weight, Some(ref bought) if &bought.asset_location != location) {
 				// we already bought another asset - don't attempt to buy this one since
@@ -120,25 +123,40 @@ impl<W: WeightToFeeConverter, R: TakeRevenue> WeightTrader for AssetRegistryTrad
 					return Ok(payment);
 				}
 
-				if let Ok(unused) = payment.clone().checked_sub((asset.clone(), fee_increase).into()) {
+				if let Ok(charged) = payment.try_take(Asset::from((asset.clone(), fee_increase)).into()) {
 					let (existing_weight, existing_fee) = match self.bought_weight {
 						Some(ref x) => (x.weight, x.amount),
 						None => (Weight::zero(), 0),
 					};
+					let Some(new_amount) = existing_fee.checked_add(fee_increase) else {
+						payment.subsume_assets(charged);
+						return Err((payment, XcmError::Overflow));
+					};
+					let Some(new_weight) = existing_weight.checked_add(&weight) else {
+						payment.subsume_assets(charged);
+						return Err((payment, XcmError::Overflow));
+					};
 
-					self.bought_weight = Some(BoughtWeight {
-						amount: existing_fee.checked_add(fee_increase).ok_or(XcmError::Overflow)?,
-						weight: existing_weight.checked_add(&weight).ok_or(XcmError::Overflow)?,
-						asset_location: location.clone(),
-					});
-					return Ok(unused);
+					if let Some(ref mut bought) = self.bought_weight {
+						bought.amount = new_amount;
+						bought.weight = new_weight;
+						bought.fees.subsume_assets(charged);
+					} else {
+						self.bought_weight = Some(BoughtWeight {
+							amount: new_amount,
+							weight: new_weight,
+							asset_location: location.clone(),
+							fees: charged,
+						});
+					}
+					return Ok(payment);
 				}
 			}
 		}
-		Err(XcmError::TooExpensive)
+		Err((payment, XcmError::TooExpensive))
 	}
 
-	fn refund_weight(&mut self, weight: XcmWeight, _context: &XcmContext) -> Option<Asset> {
+	fn refund_weight(&mut self, weight: XcmWeight, _context: &XcmContext) -> Option<AssetsInHolding> {
 		log::trace!(target: "xcm::weight", "AssetRegistryTrader::refund_weight weight: {weight:?}");
 
 		match self.bought_weight {
@@ -150,7 +168,10 @@ impl<W: WeightToFeeConverter, R: TakeRevenue> WeightTrader for AssetRegistryTrad
 				bought.weight = new_weight;
 				bought.amount = new_amount;
 
-				Some((AssetId(bought.asset_location.clone()), refunded_amount).into())
+				let refunded = bought
+					.fees
+					.saturating_take(Asset::from((AssetId(bought.asset_location.clone()), refunded_amount)).into());
+				(!refunded.is_empty()).then_some(refunded)
 			}
 			None => None, // nothing to refund
 		}
@@ -159,8 +180,8 @@ impl<W: WeightToFeeConverter, R: TakeRevenue> WeightTrader for AssetRegistryTrad
 
 impl<W: WeightToFeeConverter, R: TakeRevenue> Drop for AssetRegistryTrader<W, R> {
 	fn drop(&mut self) {
-		if let Some(ref bought) = self.bought_weight {
-			R::take_revenue((AssetId(bought.asset_location.clone()), bought.amount).into());
+		if let Some(bought) = self.bought_weight.take() {
+			R::take_revenue(bought.fees);
 		}
 	}
 }
